@@ -1,0 +1,107 @@
+<div v-scope>
+    <!-- FicTracker Settings Panel HTML -->
+    <h1>FicTracker v${GM_info.script.version} Settings</h1>
+    <section>
+        <label for="status_select">Status to Configure:</label>
+        <select id="status_select" v-model="selectedStatus">
+            <option value="0">Finished</option>
+            <option value="1">Favorite</option>
+            <option value="2">To Read</option>
+        </select>
+
+        <details open>
+            <summary>Tag And Labels Settings</summary>
+            <ul id="input_settings">
+                <li>
+                    <label for="tag_name">Tag Name:</label>
+                    <input type="text" id="tag_name" v-model="currentSettings.tag">
+                </li>
+                <li>
+                    <label for="dropdown_label">Dropdown Label:</label>
+                    <input type="text" id="dropdown_label" v-model="currentSettings.dropdownLabel">
+                </li>
+                <li>
+                    <label for="positive_label">Action Label:</label>
+                    <input type="text" id="positive_label" v-model="currentSettings.positiveLabel">
+                </li>
+                <li>
+                    <label for="negative_label">Remove Action Label:</label>
+                    <input type="text" id="negative_label" v-model="currentSettings.negativeLabel">
+                </li>
+            </ul>
+        </details>
+    </section>
+    <section>
+        <details id="highlighting_settings">
+            <summary>Highlighting Settings</summary>
+            <ul>
+                <li>
+                    <label for="highlight_color">Highlight Color:</label>
+                    <input type="color" id="highlight_color" v-model="currentSettings.highlightColor">
+                </li>
+                <li>
+                    <label for="border_size">Border Size:</label>
+                    <input type="range" id="border_size" min="1" max="20" v-model="currentSettings.borderSize">
+                </li>
+                <li>
+                    <strong>Preview:</strong>
+                    <div :style="previewStyle" id="highlighting_preview">
+                        This is a preview box
+                    </div>
+                </li>
+            </ul>
+        </details>
+    </section>
+
+    <br>
+    <section>
+        <!-- Additional Settings -->
+        <h4 class="heading">Additional Settings</h4>
+        <ul>
+            <li>
+                <input type="checkbox" id="hide_default_toread" v-model="ficTrackerSettings.hideDefaultToreadBtn">
+                <label for="hide_default_toread">Hide default Mark For Later button</label>
+            </li>
+
+            <li>
+                <input type="checkbox" id="toggle_private" v-model="ficTrackerSettings.newBookmarksPrivate">
+                <label for="toggle_private">New Bookmarks Private</label>
+            </li>
+            <li>
+                <input type="checkbox" id="toggle_rec" v-model="ficTrackerSettings.newBookmarksRec">
+                <label for="toggle_rec">New Bookmarks Rec</label>
+            </li>
+        </ul>
+    </section>
+
+    <br>
+    <section>
+        <!-- Import/Export -->
+        <h4 class="heading">Data Import/Export</h4>
+        <ul>
+            <li>
+                Last data export: {{ficTrackerSettings.lastExportTimestamp}}
+            </li>
+            <li>
+                <div style="display: flex;column-gap: 20px;">
+                    <!-- Hidden file input -->
+                    <input type="file" id="import_file" accept=".json" style="display: none;" @change="importData">
+
+                    <input type="submit" id="import_data" value="Import data from file..."
+                           title="Load your bookmarks data from a local file"
+                           @click="document.getElementById('import_file').click(); return false;">
+
+                    <input type="submit" id="export_data" value="Export data to file..."
+                           title="Export your bookmarks data to a local file" @click='exportData'>
+                </div>
+            </li>
+        </ul>
+    </section>
+
+    <section>
+        <!-- Save Settings -->
+        <div style="text-align: right;">
+            <input type="submit" id="save_settings" value="Save Settings" @click="saveSettings">
+        </div>
+    </section>
+</div>
