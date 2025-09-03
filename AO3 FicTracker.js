@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.0.2
+// @version      1.6.1
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -57,7 +57,8 @@
                 displayInDropdown: true,
                 highlightColor: "#000",
                 borderSize: 0,
-                opacity: .6
+                opacity: .6,
+                hide: false
             },
             {
                 tag: 'Favorite',
@@ -71,7 +72,8 @@
                 displayInDropdown: true,
                 highlightColor: "#F95454",
                 borderSize: 2,
-                opacity: 1
+                opacity: 1,
+                hide: false
             },
             {
                 tag: 'To Read',
@@ -85,7 +87,8 @@
                 displayInDropdown: true,
                 highlightColor: "#3BA7C4",
                 borderSize: 2,
-                opacity: 1
+                opacity: 1,
+                hide: false
             },
             {
                 tag: 'Disliked Work',
@@ -99,7 +102,8 @@
                 displayInDropdown: true,
                 highlightColor: "#000",
                 borderSize: 0,
-                opacity: .6
+                opacity: .6,
+                hide: false
             }
         ],
         loadingLabel: '⏳Loading...',
@@ -171,11 +175,12 @@
                 const boxShadow = `0 0 10px ${color}, 0 0 20px ${color}`;
                 const boxShadowHover = `0 0 15px ${color}, 0 0 30px ${color}`;
                 const opacity = status.opacity;
-
                 const hasBorder = status.borderSize > 0;
+                const hide = status.hide;
 
                 css += `
                     .${className} {
+                        ${hide ? 'display: none !important;' : ''}
                         ${hasBorder ? `border: ${border} !important;` : 'border: none !important;'}
                         border-radius: 8px !important;
                         padding: 15px !important;
@@ -1499,11 +1504,21 @@
                             </li>
                             <li>
                                 <input type="checkbox" id="toggle_collapsable" v-model="currentSettings.collapse">
-                                <label for="toggle_collapsable">Collapse works with this tag</label>
+                                <label for="toggle_collapsable" title="If enabled, fanfics with this tag will be collapsed. You can uncollapse them by hovering over.">
+                                    Collapse works with this tag
+                                </label>
+                            </li>
+                            <li>
+                                <input type="checkbox" id="toggle_hide" v-model="currentSettings.hide">
+                                <label for="toggle_hide" title="If enabled, fanfics with this tag will be completely hidden from your view.">
+                                    Hide works with this tag
+                                </label>
                             </li>
                             <li>
                                 <input type="checkbox" id="toggle_displayInDropdown" v-model="currentSettings.displayInDropdown">
-                                <label for="toggle_displayInDropdown">Display this tag in dropdown</label>
+                                <label for="toggle_displayInDropdown" title="If enabled, this tag will appear in the top right dropdown.">
+                                    Display this tag in dropdown
+                                </label>
                             </li>
                             <li>
                                 <label for="tag_name">Tag Name:</label>
@@ -1818,6 +1833,7 @@
 
                 saveSettings() {
                     localStorage.setItem('FT_settings', JSON.stringify(this.ficTrackerSettings));
+                    alert('Settings successfully saved :)')
                     DEBUG && console.log('[FicTracker] Settings saved.');
                 },
 
