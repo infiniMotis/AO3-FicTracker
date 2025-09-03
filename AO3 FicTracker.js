@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.1
+// @version      1.6.2
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -360,6 +360,196 @@
 
     }
 
+    // Class for managing custom user notes
+    class CustomUserNotesManager {
+        constructor(storageManager, remoteSyncManager = null) {
+            this.storageManager = storageManager;
+            this.remoteSyncManager = remoteSyncManager;
+        }
+
+        // Get all saved notes
+        getAllNotes() {
+            try {
+                return JSON.parse(this.storageManager.getItem("FT_userNotes")) || {};
+            } catch (e) {
+                return {};
+            }
+        }
+
+        // Get note for specific work
+        getNote(workId) {
+            const notes = this.getAllNotes();
+            return notes[workId] || null;
+        }
+
+        // Save note
+        saveNote(workId, noteText) {
+            const notes = this.getAllNotes();
+            const date = new Date().toISOString();
+            
+            if (noteText.trim() === "") {
+                delete notes[workId];
+            } else {
+                notes[workId] = {
+                    text: noteText,
+                    date
+                };
+            }
+
+            this.storageManager.setItem("FT_userNotes", JSON.stringify(notes));
+            
+            if (this.remoteSyncManager) {
+                this.remoteSyncManager.addPendingNoteUpdate(workId, noteText, date);
+            }
+
+            return { text: noteText, date };
+        }
+
+        // Delete note
+        deleteNote(workId) {
+            const notes = this.getAllNotes();
+            delete notes[workId];
+            this.storageManager.setItem("FT_userNotes", JSON.stringify(notes));
+            
+            if (this.remoteSyncManager) {
+                this.remoteSyncManager.addPendingNoteUpdate(workId, "", null);
+            }
+        }
+
+        // Generate note block HTML
+        generateNoteHtml(workId, isWorkPage = false) {
+            const note = this.getNote(workId);
+            const noteText = note?.text || '';
+            const noteDate = note?.date || '';
+            const displayDate = noteDate ? new Date(noteDate).toLocaleDateString() : '';
+            const detailsOpen = settings.expandUserNoteDetails ? 'open' : '';
+
+            // If no note exists, show create button
+            if (!noteText) {
+                return `
+                    <div class="user-note-preview" data-work-id="${workId}" style="order: 999; flex-basis: 100%;">
+                        <div style="display: flex; justify-content: center; padding: ${isWorkPage ? '10px' : '3px'};">
+                            <button class="create-note-btn" style="${isWorkPage ? 'width: 30%;' : ''} padding: 4px 6px; display: flex; justify-content: center; align-items: center; gap: 8px; border: 1px dashed currentColor; border-radius: 4px; background: transparent; color: currentColor; cursor: pointer; opacity: 0.7;">
+                                <span style="color: currentColor;">📝</span>
+                                <span>Add Note</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="user-note-preview" data-work-id="${workId}" style="order: 999; flex-basis: 100%;">
+                    <style>
+                        @media screen and (max-width: 42em) {
+                            .user-note-preview[data-work-id="${workId}"] > div > div {
+                                width: 100% !important;
+                            }
+                        }
+                    </style>
+                    <div style="display: flex; justify-content: center;">
+                        <!-- Config edit form for works listing or fic page itself -->
+                        <div style="width: ${isWorkPage ? '60%' : '100%'};">
+                            <details ${detailsOpen} style="margin: 18px 0 1px 0;; border: 1px solid currentColor; border-radius: 4px; padding: 0;">
+                                <summary style="padding: 4px 6px; cursor: pointer; font-weight: bold; background: rgba(128,128,128,0.1); display: flex; justify-content: space-between; align-items: center;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span>📝 Your Note</span>
+                                    </div>
+                                    <div class="note-actions" style="display: flex; gap: 8px;">
+                                        <button class="edit-note-btn" title="Edit Note" style="background: none; border: none; cursor: pointer;">✏️</button>
+                                        <button class="delete-note-btn" title="Delete Note" style="background: none; border: none; cursor: pointer;">🗑️</button>
+                                    </div>
+                                </summary>
+                        <div class="note-body" style="padding: 12px; border-top: 1px solid rgba(128,128,128,0.2); background: rgba(128,128,128,0.05);">
+                            <div style="line-height: 1.4; white-space: pre-wrap;">${noteText}</div>
+                            <div style="margin-top: 8px; font-size: 0.85em; opacity: 0.7;">
+                                📅 Last updated: ${displayDate} | 📏 ${noteText.length} characters
+                            </div>
+                        </div>
+                        <div class="note-edit-form" style="display: none; padding: 12px; border-top: 1px solid rgba(128,128,128,0.2); background: rgba(128,128,128,0.05);">
+                            <textarea class="note-textarea" style="box-sizing: border-box; width: 100%; min-height: 100px; margin-bottom: 8px; padding: 8px; border: 1px solid rgba(128,128,128,0.2); border-radius: 4px;">${noteText}</textarea>
+                            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                                <button class="save-note-btn" style="cursor: pointer;">💾 Save</button>
+                                <button class="cancel-edit-btn" style="cursor: pointer;">❌ Cancel</button>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            `;
+        }
+
+        // Setup event handlers
+        setupNoteHandlers(container, isWorkPage = false) {
+            container.addEventListener("click", (e) => {
+                const noteBlock = e.target.closest(".user-note-preview");
+                if (!noteBlock) return;
+
+                const workId = noteBlock.dataset.workId;
+                const btn = e.target.closest("button");
+                if (!btn) return;
+
+                if (btn.classList.contains("create-note-btn")) {
+                    noteBlock.innerHTML = this.generateEditFormHtml(isWorkPage);
+                }
+
+                if (btn.classList.contains("edit-note-btn")) {
+                    // Prevent details from toggling
+                    e.preventDefault();
+                    const noteContent = noteBlock.querySelector("details");
+                    noteContent.querySelector(".note-body").style.display = "none";
+                    noteContent.querySelector(".note-edit-form").style.display = "block";
+
+                    btn.closest('details').open = true;
+                }
+
+                if (btn.classList.contains("save-note-btn")) {
+                    const textarea = noteBlock.querySelector(".note-textarea");
+                    this.saveNote(workId, textarea.value);
+                    this.updateNoteDisplay(noteBlock, workId, isWorkPage);
+                }
+
+                if (btn.classList.contains("cancel-edit-btn")) {
+                    this.updateNoteDisplay(noteBlock, workId, isWorkPage);
+                }
+
+                if (btn.classList.contains("delete-note-btn")) {
+                    // Prevent details from toggling
+                    e.preventDefault();
+                    if (confirm("Delete this note?")) {
+                        this.deleteNote(workId);
+                        this.updateNoteDisplay(noteBlock, workId, isWorkPage);
+                    }
+                }
+            });
+        }
+
+        generateEditFormHtml(isWorkPage = false) {
+            return `
+                <style>
+                    @media screen and (max-width: 42em) {
+                        .user-note-preview > div > div {
+                            width: 100% !important;
+                        }
+                    }
+                </style>
+                <div style="display: flex; justify-content: center;">
+                    <div style="margin: 18px 0 1px 0; border: 1px solid currentColor; border-radius: 4px; padding: 12px; background: rgba(128,128,128,0.05); box-sizing: border-box !important; width: ${isWorkPage ? '60%' : '100%'};">
+                        <textarea class="note-textarea" placeholder="Write your note here..." style="box-sizing: border-box; width: 100%; min-height: 100px; margin-bottom: 8px; padding: 8px; border: 1px solid rgba(128,128,128,0.2); border-radius: 4px;"></textarea>
+                        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                            <button class="save-note-btn" style="cursor: pointer;">💾 Save</button>
+                            <button class="cancel-edit-btn" style="cursor: pointer;">❌ Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+
+        updateNoteDisplay(noteBlock, workId, isWorkPage = false) {
+            noteBlock.outerHTML = this.generateNoteHtml(workId, isWorkPage);
+        }
+    }
+
     // Class for managing storage caching
     class StorageManager {
         // Store a value in local storage
@@ -660,15 +850,11 @@
                 update => update.fanficId !== fanficId
             );
 
-            // Only add new note update if text is not empty
-            if (text && text.trim() !== '') {
-                pendingChanges.notes.push({
-                    fanficId,
-                    text,
-                    date
-                });
-            }
-            // If text is empty, the note will remain deleted (not re-added)
+            pendingChanges.notes.push({
+                fanficId,
+                text: text || '',
+                date: date || null
+            });
             
             this.savePendingChanges(pendingChanges);
         }
@@ -1005,6 +1191,9 @@
                 this.remoteSyncManager.init();
             }
 
+            // Initialize user notes manager
+            this.userNotesManager = new CustomUserNotesManager(this.storageManager, this.remoteSyncManager);
+
 
             // Extract bookmark-related data from the DOM
             this.bookmarkData = this.bookmarkTagManager.getBookmarkData();
@@ -1020,10 +1209,21 @@
             this.addButtons();
         }
 
-        // Add action buttons to the UI for each status
+        // Add action buttons and notes to the UI
         addButtons() {
             const actionsMenu = document.querySelector('ul.work.navigation.actions');
             const bottomActionsMenu = document.querySelector('div#feedback > ul');
+            
+            // Add user notes if enabled
+            if (settings.displayUserNotes) {
+                const ficWrapperContainer = document.querySelector('#main div.wrapper');
+                const containerForNotes = ficWrapperContainer.parentElement;
+
+                ficWrapperContainer.insertAdjacentHTML('afterend', 
+                    this.userNotesManager.generateNoteHtml(this.bookmarkData.workId, true)
+                );
+                this.userNotesManager.setupNoteHandlers(containerForNotes, true);
+            }
 
             settings.statuses.forEach(({
                 tag,
@@ -1125,6 +1325,8 @@
                 this.remoteSyncManager.init();
             }
 
+            // Initialize user notes manager
+            this.userNotesManager = new CustomUserNotesManager(this.storageManager, this.remoteSyncManager);
 
             this.loadStoredIds();
 
@@ -1321,144 +1523,23 @@
             })
         }
 
-        // Add note editor button to the work
+        // Add note functionality to the work
         addNoteButton(work) {
             const workId = this.getWorkId(work);
-            work.insertAdjacentHTML('beforeend', `
-                    <div class="note-keeper" data-work-id="${workId}" style="position: absolute; bottom: 0px; left: 0px; margin: 10px; font-size: 1.4em;">
-                        <button class="toggle-note-btn" title="Your Note 📓" style="padding: 2px; cursor: pointer;">📓</button>
-                        <div class="note-container" style="display:none;">
-                            <textarea placeholder="Write your note about this fanfic..."></textarea>
-                            <button class="save-note-btn">💾 Save</button>
-                            <button class="clear-note-btn" style="right: 95px;">🗑️ Clear</button>
-                        </div>
-                    </div>
-                `);
+            const container = work.querySelector('div.header.module');
+            
+            // Add the note block
+            container.insertAdjacentHTML('beforeend', 
+                this.userNotesManager.generateNoteHtml(workId)
+            );
         }
 
-        // Prefills all existing notes on the page, listens for note editing
+        // Setup note handlers for the works list
         prefillNotes() {
-            // Load all saved notes from localStorage
-            let allNotes = {};
-            try {
-                allNotes = JSON.parse(this.storageManager.getItem("FT_userNotes")) || {};
-            } catch (e) {
-                allNotes = {};
-            }
-
-            document.querySelectorAll(".note-keeper").forEach(noteEl => {
-                const workId = noteEl.dataset.workId;
-                const textarea = noteEl.querySelector("textarea");
-
-                // Pre-fill textarea if note exists
-                if (allNotes[workId]) {
-                    const noteData = allNotes[workId];
-                    const noteText = typeof noteData === 'string' ? noteData : noteData.text;
-                    const noteDate = typeof noteData === 'string' ? null : noteData.date;
-                    const displayDate = noteDate ? new Date(noteDate).toLocaleDateString() : 'Unknown date';
-
-                    textarea.value = noteText;
-
-                    // Display user note in work card
-                    if (settings.displayUserNotes) {
-                        this.renderUserNotePreview(workId, noteText, displayDate);
-                    }
-                }
-
-                // Click handling per .note-keeper
-                noteEl.addEventListener("click", (e) => {
-                    const btn = e.target.closest("button");
-                    if (!btn) return;
-
-                    const container = noteEl.querySelector(".note-container");
-
-                    if (btn.classList.contains("toggle-note-btn")) {
-                        container.style.display = container.style.display === "none" ? "block" : "none";
-                    }
-
-                    // Save note
-                    if (btn.classList.contains("save-note-btn")) {
-                        const noteText = textarea.value.trim();
-                        let date = new Date().toISOString();
-
-                        // If note is empty, delete from storage
-                        if (noteText === "") {
-                            delete allNotes[workId];
-                            btn.textContent = "🗑️ Deleted";
-                        } else {
-                            // Save note with timestamp
-                            allNotes[workId] = {
-                                text: noteText,
-                                date
-                            };
-                        }
-
-                        // Save the note to storage and append note container
-                        this.storageManager.setItem("FT_userNotes", JSON.stringify(allNotes));
-                        if (this.remoteSyncManager) {
-                            this.remoteSyncManager.addPendingNoteUpdate(workId, noteText, date);
-                        }
-
-                        this.renderUserNotePreview(workId, noteText, new Date().toISOString());
-                        container.style.display = "none";
-                    }
-
-                    // Delete existing note
-                    if (btn.classList.contains("clear-note-btn")) {
-                        if (confirm("Clear this note?")) {
-                            textarea.value = "";
-                            delete allNotes[workId];
-                            this.storageManager.setItem("FT_userNotes", JSON.stringify(allNotes));
-
-                            if (this.remoteSyncManager) {
-                                this.remoteSyncManager.addPendingNoteUpdate(workId, "", null);
-                            }
-
-                            // Remove note container from DOM
-                            const workLi = noteEl.closest('li.work');
-                            const existingNoteContainer = workLi?.querySelector(`.user-note-preview[data-work-id="${workId}"]`);
-                            existingNoteContainer?.remove();
-
-
-                            // Hide note textarea
-                            container.style.display = "none";
-                        }
-                    }
-                });
-            });
-        }
-
-        // Renders HTML for user note (create, edit, remove)
-        renderUserNotePreview(workId, noteText, noteDate) {
-            const workEl = document.querySelector(`.note-keeper[data-work-id="${workId}"]`)?.closest('li.work');
-            if (!workEl) return;
-
-            const container = workEl.querySelector('div.header.module');
-            const existingPreview = container.querySelector(`.user-note-preview[data-work-id="${workId}"]`);
-            const displayDate = noteDate ? new Date(noteDate).toLocaleDateString() : 'Unknown date';
-            const detailsOpen = settings.expandUserNoteDetails ? 'open' : '';
-
-            const html = `
-            <div class="user-note-preview" data-work-id="${workId}" style="order: 999; flex-basis: 100%;">
-                <details ${detailsOpen} style="margin: 14px 0; border: 1px solid currentColor; border-radius: 4px; padding: 0;">
-                    <summary style="padding: 8px 12px; cursor: pointer; font-weight: bold; background: rgba(128,128,128,0.1);">
-                        📝 Your Note
-                    </summary>
-                    <div style="padding: 12px; border-top: 1px solid rgba(128,128,128,0.2); background: rgba(128,128,128,0.05);">
-                        <div style="line-height: 1.4; white-space: pre-wrap;">${noteText}</div>
-                        <div style="margin-top: 8px; font-size: 0.85em; opacity: 0.7;">
-                            📅 Last updated: ${displayDate} | 📏 ${noteText.length} characters
-                        </div>
-                    </div>
-                </details>
-            </div>
-        `;
-
-            if (existingPreview) {
-                existingPreview.outerHTML = html;
-            } else {
-                container.insertAdjacentHTML('beforeend', html);
-            }
+            if (!settings.displayUserNotes) return;
+            
+            const container = document.querySelector('div#main.filtered.region');
+            this.userNotesManager.setupNoteHandlers(container);
         }
 
         // Retrieves bookmark data (if exists) for a given work, by sending HTTP GET req
@@ -2418,50 +2499,6 @@
                 li.FT_collapsable:hover h5.fandoms.heading,
                 li.FT_collapsable:hover .userstuff {
                     display: block;
-                }
-
-                .note-container {
-                    position: absolute;
-                    bottom: 40px; 
-                    display: none;
-                    width: 280px;
-                    border-radius: 6px;
-                }
-
-                .note-container textarea {
-                    width: 100%;
-                    min-height: 150px;
-                    font-size: 0.7em;
-                    resize: vertical;
-                }
-
-                .save-note-btn {
-                    position: absolute;
-                    bottom: -20px;
-                    right: -5px;
-                    font-size: 0.8em;
-                    border: 1px solid #ccc;
-                    padding: 2px 6px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    z-index: 1;
-                }
-
-                .clear-note-btn {
-                    position: absolute;
-                    bottom: -20px;
-                    right: 95px;
-                    font-size: 0.8em;
-                    border: 1px solid #ccc;
-                    padding: 2px 6px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    z-index: 1;
-                }
-
-
-                .toggle-note-btn:hover {
-                    color: #000;
                 }
 
         `);
