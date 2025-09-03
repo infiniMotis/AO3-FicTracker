@@ -1154,6 +1154,9 @@
                 // Only status highlighting for now, TBA
                 this.highlightWorkStatus(work, workId);
 
+                // Reload stored IDs to reflect any changes in storage (from fic card)
+                this.loadStoredIds(); 
+
                 this.addQuickTagDropdown(work);
 
                 // Display note management btn if enabled
@@ -1176,7 +1179,9 @@
         // Change the visuals of each work's status
         highlightWorkStatus(work, workId) {
             let shouldBeCollapsable = false;
+            const appliedStatuses = new Set();
 
+            // First check localStorage statuses
             Object.entries(this.worksStoredIds).forEach(([status, storedIds]) => {
                 const statusClass = `glowing-border-${status}`;
                 const hasStatus = storedIds.includes(workId);
@@ -1184,6 +1189,7 @@
                 if (hasStatus) {
                     // Add appropriate class for collapsable works
                     work.classList.add(statusClass);
+                    appliedStatuses.add(status);
 
                     const statusSettings = getStatusSettingsByStorageKey(status);
                     if (statusSettings?.collapse === true) {
@@ -1193,6 +1199,37 @@
                     work.classList.remove(statusClass);
                 }
             });
+
+            // If no status was found in localStorage, check for bookmark tags in the card
+            if (appliedStatuses.size === 0) {
+                const userModule = work.querySelector('div.own.user.module.group');
+                DEBUG && console.log(`[FicTracker] Checking bookmark card for work ${workId}`);
+                if (userModule) {
+                    const tagsList = userModule.querySelector('ul.meta.tags.commas');
+                    if (tagsList) {
+                        const tagElements = tagsList.querySelectorAll('a.tag');
+                        tagElements.forEach(tagElement => {
+                            const tagText = tagElement.textContent.trim();
+                            // Find matching status in settings
+                            const matchingStatus = settings.statuses.find(status => status.tag === tagText);
+                            if (matchingStatus) {
+                                const statusClass = `glowing-border-${matchingStatus.storageKey}`;
+                                work.classList.add(statusClass);
+                                appliedStatuses.add(matchingStatus.storageKey);
+                                DEBUG && console.log(`[FicTracker] Found status tag: ${tagText}`);
+
+                                // Add the work ID to storage if it's not there yet
+                                this.storageManager.addIdToCategory(matchingStatus.storageKey, workId);
+                                DEBUG && console.log(`[FicTracker] Synced work ${workId} to storage for status: ${matchingStatus.storageKey}`);
+
+                                if (matchingStatus.collapse === true) {
+                                    shouldBeCollapsable = true;
+                                }
+                            }
+                        });
+                    }
+                }
+            }
 
             // If at least one of the statuses of the work is set to be collapsable - let it be so
             if (shouldBeCollapsable) {
