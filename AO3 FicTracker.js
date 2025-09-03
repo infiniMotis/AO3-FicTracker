@@ -1149,7 +1149,18 @@
         updateWorkList() {
             const works = document.querySelectorAll('li.work.blurb, li.bookmark.blurb');
             works.forEach(work => {
+                // Skip deleted works that show the "deleted" message
+                if (work.querySelector('.message')?.textContent.includes('has been deleted')) {
+                    DEBUG && console.log('[FicTracker] Skipping deleted work:', work.id);
+                    return;
+                }
+
                 const workId = this.getWorkId(work);
+                // Skip if we couldn't get a valid work ID
+                if (!workId) {
+                    DEBUG && console.log('[FicTracker] Skipping work - could not get work ID');
+                    return;
+                }
 
                 // Only status highlighting for now, TBA
                 this.highlightWorkStatus(work, workId);
@@ -1203,7 +1214,7 @@
             // If no status was found in localStorage, check for bookmark tags in the card
             if (appliedStatuses.size === 0) {
                 const userModule = work.querySelector('div.own.user.module.group');
-                DEBUG && console.log(`[FicTracker] Checking bookmark card for work ${workId}`);
+                DEBUG && console.debug(`[FicTracker] Checking bookmark card for work ${workId}`);
                 if (userModule) {
                     const tagsList = userModule.querySelector('ul.meta.tags.commas');
                     if (tagsList) {
@@ -2496,6 +2507,7 @@
                     /\/works\?.*/,
                     /\/bookmarks$/,
                     /\/users\/bookmarks/,
+                    /\/users\/.*\/works/,
                     /\/bookmarks\?page=/,
                     /\/bookmarks\?bookmark_search/,
                     /\/bookmarks\?commit=Sort\+and\+Filter&bookmark_search/,
