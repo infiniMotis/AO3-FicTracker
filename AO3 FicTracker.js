@@ -601,7 +601,8 @@
     class RemoteStorageSyncManager {
         constructor() {
             this.storageManager = new StorageManager();
-            this.syncedKeys = ['FT_favorites', 'FT_disliked', 'FT_toread', 'FT_finished'];
+            // Sync all configured status storage keys dynamically
+            this.syncedKeys = settings.statuses.map(s => s.storageKey);
             this.PENDING_CHANGES_KEY = 'FT_pendingChanges';
             this.LAST_SYNC_KEY = 'FT_lastSync';
 
@@ -1365,7 +1366,7 @@
                 }
 
                 // Only status highlighting for now, TBA
-                this.highlightWorkStatus(work, workId);
+                this.highlightWorkStatus(work, workId, true);
 
                 // Reload stored IDs to reflect any changes in storage (from fic card)
                 this.loadStoredIds(); 
@@ -1390,7 +1391,7 @@
         }
 
         // Change the visuals of each work's status
-        highlightWorkStatus(work, workId) {
+        highlightWorkStatus(work, workId, cardToStorageSync = false) {
             let shouldBeCollapsable = false;
             const appliedStatuses = new Set();
 
@@ -1414,7 +1415,7 @@
             });
 
             // If no status was found in localStorage, check for bookmark tags in the card
-            if (appliedStatuses.size === 0) {
+            if (appliedStatuses.size === 0 && cardToStorageSync === true) {
                 const userModule = work.querySelector('div.own.user.module.group');
                 DEBUG && console.debug(`[FicTracker] Checking bookmark card for work ${workId}`);
                 if (userModule) {
@@ -1618,12 +1619,13 @@
                 <h1>FicTracker Settings</h1>
                 <section>
                     <label for="status_select">Status to Configure:</label>
-                    <select id="status_select" v-model="selectedStatus">
-                        <option value="0">Finished</option>
-                        <option value="1">Favorite</option>
-                        <option value="2">To Read</option>
-                        <option value="3">Disliked</option>
-                    </select>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap: wrap;">
+                        <select id="status_select" v-model="selectedStatus">
+                            <option v-for="(s, idx) in ficTrackerSettings.statuses" :key="s.storageKey || idx" :value="idx">{{ s.tag }}</option>
+                        </select>
+                        <input type="submit" value="＋ Add Tag" @click="addStatus">
+                        <input type="submit" :disabled="!canDeleteSelected" value="🗑️ Delete Tag" @click="deleteStatus">
+                    </div>
                     <details open>
                         <summary>Tag And Labels Settings</summary>
                         <ul id="input_settings">
@@ -1652,6 +1654,9 @@
                             <li>
                                 <label for="tag_name">Tag Name:</label>
                                 <input type="text" id="tag_name" v-model="currentSettings.tag">
+                            </li>
+                            <li>
+                                <small>Storage key: <code>{{ currentSettings.storageKey }}</code></small>
                             </li>
                             <li>
                                 <label for="dropdown_label">Dropdown Label:</label>
@@ -1918,6 +1923,11 @@
                     return this.ficTrackerSettings.statuses[this.selectedStatus];
                 },
 
+                get canDeleteSelected() {
+                    // Prevent deleting built-ins (first 4) for safety
+                    return this.ficTrackerSettings.statuses && this.selectedStatus >= 4;
+                },
+
                 get previewStyle() {
                     const s = this.currentSettings;
                     const borderSize = s.borderSize ?? 0;
@@ -1959,6 +1969,43 @@
 
                 // Pass func through global scope
                 displayModal: displayModal,
+
+                // Status CRUD
+                addStatus() {
+                    const baseKey = 'FT_custom_' + Date.now();
+                    const newStatus = {
+                        tag: 'New Tag',
+                        dropdownLabel: 'My New Tag Fanfics',
+                        positiveLabel: '➕ Add Tag',
+                        negativeLabel: '🧹 Remove Tag',
+                        selector: baseKey + '_btn',
+                        storageKey: baseKey,
+                        enabled: true,
+                        collapse: false,
+                        displayInDropdown: true,
+                        highlightColor: '#888888',
+                        borderSize: 2,
+                        opacity: 1,
+                        hide: false
+                    };
+                    this.ficTrackerSettings.statuses.push(newStatus);
+                    this.selectedStatus = this.ficTrackerSettings.statuses.length - 1;
+                },
+
+                deleteStatus() {
+                    if (!this.canDeleteSelected) return;
+                    const status = this.ficTrackerSettings.statuses[this.selectedStatus];
+                    const confirmMsg = `Delete tag "${status.tag}" and its highlighting settings?\nThis will not remove any AO3 bookmarks or tags.`;
+                    if (!confirm(confirmMsg)) return;
+
+                    // Remove local storage lists for this custom tag if we used any
+                    // We only stored lists under storageKey. Clean it.
+                    try { localStorage.removeItem(status.storageKey); } catch (e) {}
+
+                    // Remove from list and clamp selected index
+                    this.ficTrackerSettings.statuses.splice(this.selectedStatus, 1);
+                    this.selectedStatus = Math.max(0, Math.min(this.selectedStatus, this.ficTrackerSettings.statuses.length - 1));
+                },
 
                 saveSettings() {
                     localStorage.setItem('FT_settings', JSON.stringify(this.ficTrackerSettings));
@@ -2146,11 +2193,15 @@
                     // Gather current local storage data to be uploaded to Google Sheets
                     const initData = {
                         FT_userNotes: JSON.stringify(JSON.parse(localStorage.getItem('FT_userNotes') || '{}')),
-                        FT_favorites: localStorage.getItem('FT_favorites') || '',
-                        FT_disliked: localStorage.getItem('FT_disliked') || '',
-                        FT_toread: localStorage.getItem('FT_toread') || '',
-                        FT_finished: localStorage.getItem('FT_finished') || '',
                     };
+                    try {
+                        const allStatuses = this.ficTrackerSettings.statuses;
+                        for (const s of allStatuses) {
+                            initData[s.storageKey] = localStorage.getItem(s.storageKey) || '';
+                        }
+                    } catch (e) {
+                        DEBUG && console.warn('[FicTracker] Failed to build initData for dynamic statuses:', e);
+                    }
 
                     DEBUG && console.log('[FicTracker] Initializing Google Sheets with data:', initData);
 
@@ -2249,17 +2300,21 @@
 
         }
 
-        // Exports user data (favorites, finished, toread, disliked, notes, and statuses config) into a JSON file
+        // Exports user data (all statuses, notes, and statuses config) into a JSON file
         exportSettings() {
             // Formatted timestamp for export
             const exportTimestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
             const exportData = {
-                FT_favorites: localStorage.getItem('FT_favorites'),
-                FT_finished: localStorage.getItem('FT_finished'),
-                FT_toread: localStorage.getItem('FT_toread'),
-                FT_disliked: localStorage.getItem('FT_disliked'),
                 FT_userNotes: localStorage.getItem('FT_userNotes'),
             };
+            try {
+                const allStatuses = this.settings.statuses;
+                for (const s of allStatuses) {
+                    exportData[s.storageKey] = localStorage.getItem(s.storageKey);
+                }
+            } catch (e) {
+                DEBUG && console.warn('[FicTracker] Failed to collect dynamic status keys for export:', e);
+            }
 
             // Only include status configuration if the setting is enabled
             if (this.settings.exportStatusesConfig) {
@@ -2320,20 +2375,29 @@
         }
 
         mergeImportedData(importedData) {
-            // Order: [favorites, finished, toread, disliked, notes]
-            let newEntries = [0, 0, 0, 0, 0];
+            // First, if statuses config provided, load it so we know all dynamic keys
+            if (importedData.FT_statusesConfig) {
+                try {
+                    const importedStatuses = JSON.parse(importedData.FT_statusesConfig);
+                    this.settings.statuses = importedStatuses;
+                    localStorage.setItem('FT_settings', JSON.stringify(this.settings));
+                } catch (err) {
+                    DEBUG && console.error('[FicTracker] Error importing status configuration:', err);
+                }
+            }
 
-            // Handle comma-separated list data (favorites, finished, toread, disliked)
-            const listKeys = ['FT_favorites', 'FT_finished', 'FT_toread', 'FT_disliked'];
-            listKeys.forEach((key, index) => {
-                if (!importedData[key]) return;
+            // Track new entries per known keys + notes at the end
+            let newEntriesMap = {};
+
+            // Merge all status list keys found in the file that are in our configured statuses
+            const knownKeys = new Set((this.settings.statuses || []).map(s => s.storageKey));
+            Object.keys(importedData).forEach((key) => {
+                if (!knownKeys.has(key)) return;
                 const currentData = localStorage.getItem(key) ? localStorage.getItem(key).split(',') : [];
-                const newData = importedData[key].split(',') || [];
-
+                const newData = (importedData[key] || '').split(',').filter(Boolean);
                 const initialLen = currentData.length;
                 const mergedData = [...new Set([...currentData, ...newData])];
-
-                newEntries[index] = mergedData.length - initialLen;
+                newEntriesMap[key] = mergedData.length - initialLen;
                 localStorage.setItem(key, mergedData.join(','));
             });
 
@@ -2355,20 +2419,17 @@
                 }
             }
 
-            // Handle status configuration
-            if (importedData.FT_statusesConfig) {
-                try {
-                    const importedStatuses = JSON.parse(importedData.FT_statusesConfig);
-                    this.settings.statuses = importedStatuses;
-                    localStorage.setItem('FT_settings', JSON.stringify(this.settings));
-                } catch (err) {
-                    DEBUG && console.error('[FicTracker] Error importing status configuration:', err);
-                }
-            }
+            // Build a dynamic summary
+            let summaryLines = [];
+            (this.settings.statuses || []).forEach((s) => {
+                const count = newEntriesMap[s.storageKey] || 0;
+                summaryLines.push(`${s.tag}: ${count}`);
+            });
+            const notesAdded = newEntriesMap['FT_userNotes'] || 0;
+            summaryLines.push(`Notes: ${notesAdded}`);
 
-            alert(`Data imported successfully!\nNew favorite entries: ${newEntries[0]}\nNew finished entries: ${newEntries[1]}\n` +
-                  `New To-Read entries: ${newEntries[2]}\nNew disliked entries: ${newEntries[3]}\nNew notes entries: ${newEntries[4]}`);
-            DEBUG && console.log('[FicTracker] Data imported successfully. Stats:', newEntries);
+            alert(`Data imported successfully!\n` + summaryLines.join('\n'));
+            DEBUG && console.log('[FicTracker] Data imported successfully. Stats:', newEntriesMap);
         }
 
     }
