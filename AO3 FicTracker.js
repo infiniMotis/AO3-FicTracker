@@ -2357,6 +2357,16 @@
             const file = event.target.files[0];
             if (!file) return;
 
+            // Warn user when Google Sheets sync is enabled to prevent imported data being overwritten
+            if (this.settings && this.settings.syncEnabled) {
+                const proceed = confirm("Google Sheets sync is currently ENABLED.\n\nIf you import now, the next sync may overwrite your imported data with what is currently stored in the Sheet.\n\nRecommended options:\n  1) Disable Google Sheets sync, import your file. Re-enabling with the same Sheet will overwrite your import.\n  2) OR: Temporarily Disable sync, import, then re-enable sync using a NEW Google Sheet URL to avoid pulling stale data.\n\nDo you still want to proceed with the import right now?");
+
+                if (!proceed) {
+                    event.target.value = '';
+                    return;
+                }
+            }
+
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
