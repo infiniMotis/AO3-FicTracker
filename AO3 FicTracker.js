@@ -115,7 +115,6 @@
         deleteEmptyBookmarks: true,
         debug: false,
         displayUserNotes: true,
-        displayUserNotesBtn: true,
         expandUserNoteDetails: true,
         sheetUrl: "",
         syncInterval: 60,
@@ -1237,7 +1236,11 @@
                 // Skip rendering btn for disabled status
                 if (!enabled) return;
 
-                const isTagged = this.bookmarkData.bookmarkTags.includes(tag);
+                // Case insensitive tag matching
+                const isTagged = this.bookmarkData.bookmarkTags.some(
+                    t => t.toLowerCase() === tag.toLowerCase()
+                );
+
                 const buttonHtml = `<li class="mark-as-read" id="${selector}"><a href="#">${isTagged ? negativeLabel : positiveLabel}</a></li>`;
 
                 actionsMenu.insertAdjacentHTML('beforeend', buttonHtml);
@@ -1374,7 +1377,7 @@
                 this.addQuickTagDropdown(work);
 
                 // Display note management btn if enabled
-                if (settings.displayUserNotesBtn) {
+                if (settings.displayUserNotes) {
                     this.addNoteButton(work);
                 }
             });
@@ -1705,12 +1708,11 @@
                     <ul>
                         <!-- Core Functionality -->
                         <li>
-                            <input type="checkbox" id="toggle_displayUserNotesBtn" v-model="ficTrackerSettings.displayUserNotesBtn">
-                            <label for="toggle_displayUserNotesBtn" title="Shows the 📓 note button on each work card for writing personal notes">Display note management button</label>
-                        </li>
-                        <li>
                             <input type="checkbox" id="toggle_displayUserNotes" v-model="ficTrackerSettings.displayUserNotes">
-                            <label for="toggle_displayUserNotes" title="Shows your saved notes directly in work cards as collapsible sections">Display your notes in work cards</label>
+                            <label for="toggle_displayUserNotes" 
+                                title="Shows the "Add note" button on each work card and your saved notes as collapsible sections">
+                                Display "Add Note" button and your notes in work cards
+                            </label>
                         </li>
                         <li>
                             <input type="checkbox" id="toggle_expandUserNoteDetails" v-model="ficTrackerSettings.expandUserNoteDetails">
@@ -1889,7 +1891,7 @@
                 <section>
                     <!-- Save Settings -->
                     <div style="text-align: right;">
-                        <input type="submit" id="save_settings" value="Save Settings" @click="saveSettings">
+                        <input type="submit" id="save_settings" value="Save Settings" @click="saveSettings();alert('Settings successfully saved :)')">
                     </div>
                 </section>
                 </div>
@@ -2005,11 +2007,12 @@
                     // Remove from list and clamp selected index
                     this.ficTrackerSettings.statuses.splice(this.selectedStatus, 1);
                     this.selectedStatus = Math.max(0, Math.min(this.selectedStatus, this.ficTrackerSettings.statuses.length - 1));
+
+                    this.saveSettings();
                 },
 
                 saveSettings() {
                     localStorage.setItem('FT_settings', JSON.stringify(this.ficTrackerSettings));
-                    alert('Settings successfully saved :)')
                     DEBUG && console.log('[FicTracker] Settings saved.');
                 },
 
@@ -2412,10 +2415,10 @@
                     localStorage.setItem('FT_userNotes', JSON.stringify(mergedNotes));
                     
                     const newNotesCount = Object.keys(importedNotes).length - Object.keys(currentNotes).length;
-                    newEntries[4] = Math.max(0, newNotesCount);
+                    newEntriesMap['FT_userNotes'] = Math.max(0, newNotesCount);
                 } catch (err) {
                     DEBUG && console.error('[FicTracker] Error merging user notes:', err);
-                    newEntries[4] = 0;
+                    newEntriesMap['FT_userNotes'] = 0;
                 }
             }
 
