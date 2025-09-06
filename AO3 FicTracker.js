@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.2
+// @version      1.6.3
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -123,6 +123,7 @@
         syncWidgetEnabled: true,
         syncWidgetOpacity: .5,
         exportStatusesConfig: true,
+        collapseAndHideOnBookmarks: false,
     };
 
     // Toggle debug info
@@ -132,6 +133,18 @@
     function getStatusSettingsByStorageKey(storageKey) {
         return settings.statuses.find(status => status.storageKey === storageKey);
     }
+
+    // Utility function to check if current page is users own bookmarks page
+    function isOwnBookmarksPage() {
+        // TODO: use regex for precise detection
+        const userMenu = document.querySelector('ul.menu.dropdown-menu');
+        const username = userMenu?.previousElementSibling?.getAttribute('href')?.split('/').pop() ?? '';
+        if (!username) return false;
+    
+        const url = window.location.pathname + window.location.search;
+        return url.includes('/bookmarks') && url.includes(username);
+    }
+    
 
     // Utility function for displaying modals
     function displayModal(modalTitle, htmlContent) {
@@ -176,10 +189,14 @@
                 const opacity = status.opacity;
                 const hasBorder = status.borderSize > 0;
                 const hide = status.hide;
+                
+                // Check if we should hide this status based on bookmarks page setting
+                const ownBookmarksPage = isOwnBookmarksPage();
+                const shouldHide = hide && ((ownBookmarksPage && settings.collapseAndHideOnBookmarks) || !ownBookmarksPage);            
 
                 css += `
                     .${className} {
-                        ${hide ? 'display: none !important;' : ''}
+                        ${shouldHide ? 'display: none !important;' : ''}
                         ${hasBorder ? `border: ${border} !important;` : 'border: none !important;'}
                         border-radius: 8px !important;
                         padding: 15px !important;
@@ -1448,8 +1465,12 @@
                 }
             }
 
+            const ownBookmarksPage = isOwnBookmarksPage();
+            const collapseAllowed = !ownBookmarksPage || settings.collapseAndHideOnBookmarks;
+            
             // If at least one of the statuses of the work is set to be collapsable - let it be so
-            if (shouldBeCollapsable) {
+            // But check if we're on own bookmarks page and collapse is disabled there
+            if (shouldBeCollapsable && collapseAllowed) {
                 work.classList.add('FT_collapsable');
             } else {
                 work.classList.remove('FT_collapsable');
@@ -1736,7 +1757,12 @@
                             Auto-delete empty bookmarks
                             </label>
                         </li>
-                        
+                        <li>
+                            <input type="checkbox" id="toggle_collapseAndHideOnBookmarks" v-model="ficTrackerSettings.collapseAndHideOnBookmarks">
+                            <label for="toggle_collapseAndHideOnBookmarks" title="If enabled, works on your bookmarks page will collapse or be hidden based on your tag settings, just like on works browsing pages. If disabled, all bookmarked works will remain uncollapsed and visible.">
+                                Collapse and hide works on my bookmarks page
+                            </label>
+                        </li>                        
                         <!-- Interface Customization -->
                         <li>
                             <input type="checkbox" id="hide_default_toread" v-model="ficTrackerSettings.hideDefaultToreadBtn">
