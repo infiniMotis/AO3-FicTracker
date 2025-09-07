@@ -1642,7 +1642,7 @@
                 <!-- FicTracker Settings Panel HTML -->
                 <h1>FicTracker Settings</h1>
                 <section>
-                    <label for="status_select">Status to Configure:</label>
+                    <label for="status_select">Tag to Configure:</label>
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap: wrap;">
                         <select id="status_select" v-model="selectedStatus">
                             <option v-for="(s, idx) in ficTrackerSettings.statuses" :key="s.storageKey || idx" :value="idx">{{ s.tag }}</option>
@@ -1650,6 +1650,22 @@
                         <input type="submit" value="＋ Add Tag" @click="addStatus">
                         <input type="submit" :disabled="!canDeleteSelected" value="🗑️ Delete Tag" @click="deleteStatus">
                     </div>
+                    <details style="margin-top: 10px;">
+                        <summary>Change Tag Order</summary>
+                        <div style="border: 1px solid #ccc; padding: 10px; border-radius: 5px; margin-top: 10px;">
+                            <p>Use arrows to change order. This will affect the order of buttons on work pages and in "Change Status" dropdown.</p>
+                            <ul style="list-style: none; padding: 0;">
+                                <li v-for="(s, idx) in ficTrackerSettings.statuses" :key="s.storageKey || idx" 
+                                    :style="{padding: '5px', borderRadius: '3px', background: selectedStatus === idx ? 'rgba(0, 0, 0, 0.3)' : 'transparent', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}">
+                                    <span @click="selectedStatus = idx" :style="{cursor: 'pointer'}" :title="'Click to edit ' + s.tag">{{ idx + 1 }}. {{ s.tag }}</span>
+                                    <div style="display: flex; gap: 5px;">
+                                        <button @click.stop="moveStatus(idx, -1)" :disabled="idx === 0" title="Move Up" style="cursor: pointer;">⬆️</button>
+                                        <button @click.stop="moveStatus(idx, 1)" :disabled="idx === ficTrackerSettings.statuses.length - 1" title="Move Down" style="cursor: pointer;">⬇️</button>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </details>
                     <details open>
                         <summary>Tag And Labels Settings</summary>
                         <ul id="input_settings">
@@ -1952,8 +1968,9 @@
                 },
 
                 get canDeleteSelected() {
-                    // Prevent deleting built-ins (first 4) for safety
-                    return this.ficTrackerSettings.statuses && this.selectedStatus >= 4;
+                    // Prevent deleting built-ins 
+                    const builtInKeys = ['FT_finished', 'FT_favorites', 'FT_toread', 'FT_disliked'];
+                    return !builtInKeys.includes(this.ficTrackerSettings.statuses[this.selectedStatus].storageKey);
                 },
 
                 get previewStyle() {
@@ -1999,6 +2016,23 @@
                 displayModal: displayModal,
 
                 // Status CRUD
+                moveStatus(index, direction) {
+                    const statuses = this.ficTrackerSettings.statuses;
+                    const selectedObject = statuses[this.selectedStatus];
+                    const newIndex = index + direction;
+
+                    if (newIndex < 0 || newIndex >= statuses.length) return;
+
+                    const [movedStatus] = statuses.splice(index, 1);
+                    statuses.splice(newIndex, 0, movedStatus);
+
+                    // Wait until Vue updates the DOM and reactivity system after the reorder,
+                    // then recalculate the selected index to keep the correct status selected.
+                    this.$nextTick(() => {
+                        this.selectedStatus = statuses.indexOf(selectedObject);
+                    });
+                },
+                
                 addStatus() {
                     const baseKey = 'FT_custom_' + Date.now();
                     const newStatus = {
