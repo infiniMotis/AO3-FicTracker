@@ -1511,7 +1511,7 @@
 
         // Listen for clicks on quicktag dropdown items
         setupQuickTagListener() {
-            const worksContainer = document.querySelector('div#main.filtered.region');
+            const worksContainer = document.querySelector('div#main.region');
             // Event delegation for optimization
             worksContainer.addEventListener('click', async (event) => {
                 if (event.target.matches('a.work_quicktag_btn')) {
@@ -1563,7 +1563,8 @@
         prefillNotes() {
             if (!settings.displayUserNotes) return;
             
-            const container = document.querySelector('div#main.filtered.region');
+            // div#main.filtered.region, div#main.works-search.region, div#main.series-show.region
+            const container = document.querySelector('div#main.region');
             this.userNotesManager.setupNoteHandlers(container);
         }
 
