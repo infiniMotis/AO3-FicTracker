@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.4
+// @version      1.6.4.2
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -1553,12 +1553,12 @@
         // Add note functionality to the work
         addNoteButton(work) {
             const workId = this.getWorkId(work);
-            // div.header.module | ul.tags.commas
-            const container = work.querySelector('blockquote.userstuff.summary');
+            // div.header.module | ul.tags.commas | blockquote.userstuff.summary
+            const container = work.querySelector('dl.stats');
             
             // Add the note block
-            //beforeend
-            container.insertAdjacentHTML('afterend', 
+            //beforeend | afterend
+            container.insertAdjacentHTML('beforebegin', 
                 this.userNotesManager.generateNoteHtml(workId)
             );
         }
