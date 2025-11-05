@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.4.2
+// @version      1.6.5
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -55,9 +55,10 @@
                 enabled: true,
                 collapse: false,
                 displayInDropdown: true,
-                highlightColor: "#000",
+                highlightColor: "#000000",
                 borderSize: 0,
                 opacity: .6,
+                borderOpacity: 255,
                 hide: false
             },
             {
@@ -73,6 +74,7 @@
                 highlightColor: "#F95454",
                 borderSize: 2,
                 opacity: 1,
+                borderOpacity: 255,
                 hide: false
             },
             {
@@ -88,6 +90,7 @@
                 highlightColor: "#3BA7C4",
                 borderSize: 2,
                 opacity: 1,
+                borderOpacity: 255,
                 hide: false
             },
             {
@@ -100,9 +103,10 @@
                 enabled: true,
                 collapse: true,
                 displayInDropdown: true,
-                highlightColor: "#000",
+                highlightColor: "#000000",
                 borderSize: 0,
                 opacity: .6,
+                borderOpacity: 255,
                 hide: false
             }
         ],
@@ -183,9 +187,10 @@
 
                 const className = `glowing-border-${status.storageKey}`;
                 const color = status.highlightColor;
-                const border = `${status.borderSize}px solid ${color}`;
-                const boxShadow = `0 0 10px ${color}, 0 0 20px ${color}`;
-                const boxShadowHover = `0 0 15px ${color}, 0 0 30px ${color}`;
+                const bOpacity = Math.round((status?.borderOpacity ?? 255)).toString(16)
+                const border = `${status.borderSize}px solid ${color + bOpacity}`;
+                const boxShadow = `0 0 10px ${color + bOpacity}, 0 0 20px ${color + bOpacity}`;
+                const boxShadowHover = `0 0 15px ${color + bOpacity}, 0 0 30px ${color + bOpacity}`;
                 const opacity = status.opacity;
                 const hasBorder = status.borderSize > 0;
                 const hide = status.hide;
@@ -1833,6 +1838,10 @@
                                 <input type="range" id="border_size" min="0" max="20" v-model="currentSettings.borderSize">
                             </li>
                             <li>
+                                <label for="border_opacity">Border Opacity:</label>
+                                <input type="range" id="border_opacity" min="0" max="255" step="1" v-model="currentSettings.borderOpacity">
+                            </li>
+                            <li>
                                 <label for="highlight_opacity">Opacity:</label>
                                 <input type="range" id="highlight_opacity" min="0" max="1" step="0.1" v-model="currentSettings.opacity">
                             </li>
@@ -2084,12 +2093,13 @@
                     const s = this.currentSettings;
                     const borderSize = s.borderSize ?? 0;
                     const hasBorder = borderSize > 0;
+                    const bOpacity = Math.round((s?.borderOpacity ?? 255)).toString(16)
 
                     return {
                         height: '50px',
-                        border: hasBorder ? `${s.borderSize}px solid ${s.highlightColor}` : 'none',
+                        border: hasBorder ? `${s.borderSize}px solid ${s.highlightColor + bOpacity}` : 'none',
                         boxShadow: hasBorder ?
-                            `0 0 10px ${s.highlightColor}, 0 0 20px ${s.highlightColor}` :
+                            `0 0 10px ${s.highlightColor + bOpacity}, 0 0 20px ${s.highlightColor + bOpacity}` :
                             'none',
                         opacity: s.opacity
                     };
@@ -2155,6 +2165,7 @@
                         highlightColor: '#888888',
                         borderSize: 2,
                         opacity: 1,
+                        borderOpacity: 255,
                         hide: false
                     };
                     this.ficTrackerSettings.statuses.push(newStatus);
