@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.5
+// @version      1.6.5.1
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -2784,7 +2784,7 @@
 
             // Handler for fanfic pages (chapters, entire work, one shot)
             urlHandler.addHandler(
-                [/\/works\/.*(?:chapters|view_full_work)/, /works\/\d+(#\w+-?\w*)?$/],
+                [/\/works\/.*(?:chapters|view_full_work)/, /works\/\d+(#\w+-?\w*)?$/, /\/chapters\/\d+\?show_comments/],
                 () => {
                     const bookmarkManager = new BookmarkManager("https://archiveofourown.org/");
                 }
@@ -2795,6 +2795,7 @@
                     /\/works\/search/,
                     /\/works\?.*/,
                     /\/bookmarks$/,
+                    /\/bookmarks\/\d+$/,
                     /\/users\/bookmarks/,
                     /\/users\/.*\/works/,
                     /\/users\/[^/]+\/pseuds\/[^/]+/,
