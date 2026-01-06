@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.6
+// @version      1.6.6.2
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -676,7 +676,7 @@
 
         getMyNotesModalHTML(htmlNotesList) {
             const notesModalHTML = `
-                <div style="position: sticky;top: 0;background: white;z-index: 10;">
+                <div style="position: sticky;top: 0;z-index: 10;">
                     <label for="notes_search">Search Notes:</label>
                     <input type="search" id="ft_notes_search">
                 </div>
@@ -2953,14 +2953,15 @@
             `;
             topBar.insertAdjacentHTML('beforeend', notesUI);
 
+            const container = document.querySelector('div.content.userstuff');
+            this.userNotesManager.setupNoteHandlers(container, false, true);
+
             document.querySelector('#ft_my_notes').addEventListener('click', () => {
                 const sortedNotes = this.userNotesManager.getNotesSorted();
                 const htmlNotesList = this.userNotesManager.getNotesHTML(sortedNotes);
                 const notesModalHTML = this.userNotesManager.getMyNotesModalHTML(htmlNotesList);
 
                 displayModal(`Total Notes: ${htmlNotesList.length}`, notesModalHTML);
-                const container = document.querySelector('div.content.userstuff');
-                this.userNotesManager.setupNoteHandlers(container, false, true);
 
                 document.querySelector('#ft_notes_search').addEventListener('input', (e) => {
                     this.filterAndRenderNotesModal(e.target.value);
@@ -2975,7 +2976,7 @@
             const htmlNotesList = this.userNotesManager.getNotesHTML(filteredNotes);
             const container = document.querySelector('#ft_notesList');
             container.innerHTML = htmlNotesList.join('');
-            this.userNotesManager.setupNoteHandlers(container, false, true);
+            //this.userNotesManager.setupNoteHandlers(container, false, true);
         }
 
 
