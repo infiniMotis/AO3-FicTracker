@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.6.3
+// @version      1.6.6.4
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -223,7 +223,7 @@
                         opacity: ${opacity};
                     }
                     .${className}:hover {
-                        ${hasBorder ? `box-shadow: ${boxShadowHover} !important;` : 'box-shadow: none !important;'}
+                        ${hasBorder ? `box-shadow: ${boxShadowHover} !important;` : ''}
                         opacity: 1;
                     }
                 `;
@@ -1299,7 +1299,13 @@
             // Toggle the bookmark tag and log the action
             if (isTagPresent) {
                 DEBUG && console.log(`[FicTracker] Removing tag: ${tag}`);
-                bookmarkData.bookmarkTags.splice(bookmarkData.bookmarkTags.indexOf(tag), 1);
+
+                // Use case-insensitive search to find and remove the tag
+                const tagIndex = bookmarkData.bookmarkTags.findIndex(t => t.toLowerCase() === tag.toLowerCase());
+                if (tagIndex !== -1) {
+                    bookmarkData.bookmarkTags.splice(tagIndex, 1);
+                }
+
                 storageManager.removeIdFromCategory(storageKey, bookmarkData.workId);
                 
             if (remoteSyncManager) {
@@ -1448,7 +1454,9 @@
         // Handle the action for adding/removing/deleting a bookmark tag
         async handleActionButton(tag, positiveLabel, negativeLabel, selector, storageKey) {
             const authenticityToken = this.requestManager.getAuthenticityToken();
-            const isTagPresent = this.bookmarkData.bookmarkTags.includes(tag);
+
+            // Use case-insensitive comparison to check if tag is present
+            const isTagPresent = this.bookmarkData.bookmarkTags.some(t => t.toLowerCase() === tag.toLowerCase());
 
             // Consider button bottom menu duplication
             const buttons = document.querySelectorAll(`#${selector} a`);
@@ -1681,7 +1689,9 @@
                     // Get request to retrieve work bookmark data
                     const bookmarkData = await this.getRemoteBookmarkData(event.target);
                     const authenticityToken = this.requestManager.getAuthenticityToken();
-                    const tagExists = bookmarkData.bookmarkTags.includes(targetStatusTag);
+                    
+                    // Use case-insensitive comparison to check if tag exists
+                    const tagExists = bookmarkData.bookmarkTags.some(t => t.toLowerCase() === targetStatusTag.toLowerCase());
 
                     try {
                         // Send tag toggle request and modify cached bookmark data
