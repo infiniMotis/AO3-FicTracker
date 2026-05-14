@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.6.5
+// @version      1.6.6.6
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -40,6 +40,30 @@
 
 (function() {
     'use strict';
+
+    // Default formatting for bookmark notes prefill
+    const DEFAULT_BOOKMARK_NOTE_FORMAT = `<details>
+    <summary>Work: {TITLE}</summary>
+    <p>{TITLE} by {AUTHOR} | {FANDOM}</p>
+    <p>{SERIES}</p>
+    <details>
+        <summary>Pairings:</summary>
+        <ul>{PAIRING_TAGS}</ul>
+    </details>
+    <details>
+        <summary>Characters:</summary>
+        <ul>{CHARACTER_TAGS}</ul>
+    </details>
+    <details>
+        <summary>Additional Tags:</summary>
+        <ul>{ADDITIONAL_TAGS}</ul>
+    </details>
+    <details>
+        <summary>Summary:</summary>
+        <blockquote>{SUMMARY}</blockquote>
+    </details>
+    </details>`;
+
 
     // Default script settings
     let settings = {
@@ -133,11 +157,14 @@
         exportStatusesConfig: true,
         collapseAndHideOnBookmarks: false,
         displayMyNotesButton: true,
-        displayOnPageSorting: true
+        displayOnPageSorting: true,
+        prefillBookmarkNote: false,
+        bookmarkNoteFormatting: DEFAULT_BOOKMARK_NOTE_FORMAT
     };
 
     // Toggle debug info
     let DEBUG = settings.debug;
+
 
     // Utility function for status settings retrieval
     function getStatusSettingsByStorageKey(storageKey) {
@@ -2025,6 +2052,23 @@
                             </li>
                         </ul>
                     </details>
+                    <details id="notes_settings">
+                        <summary>Bookmark Notes Formatting</summary>
+                        <ul>
+                            <li>
+                                <label for="notes_content">Bookmark Note Formatting Preview:</label>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                    <textarea id="notes_content" v-model="ficTrackerSettings.bookmarkNoteFormatting"
+                                        style="height: 120px; resize: vertical;">
+                                    </textarea>
+                                    <div v-html="bookmarkNoteFormattingPreview" style="border: 1px solid #ccc; padding: 8px; min-height: 120px;"></div>
+                                </div>
+                            </li>
+                            <li>
+                                <small>Placeholders: {AUTHOR} {TITLE} {FANDOM} {PAIRING_TAGS} {CHARACTER_TAGS} {ADDITIONAL_TAGS} {SUMMARY} {SERIES}</small>
+                            </li>
+                        </ul>
+                    </details>
                 </section>
                 <br>
                 <section>
@@ -2033,9 +2077,16 @@
                     <ul>
                         <!-- Core Functionality -->
                         <li>
+                            <input type="checkbox" id="toggle_bookmarkNoteFormatting" v-model="ficTrackerSettings.prefillBookmarkNote">
+                            <label for="toggle_bookmarkNoteFormatting"
+                                title="Automatically prefills the AO3 bookmark note with work details like title, author, fandom and summary when you bookmark a work. Formatting can be customized from 'Bookmark Notes Formatting' menu">
+                                Prefill bookmark note with work details
+                            </label>
+                        </li>
+                        <li>
                             <input type="checkbox" id="toggle_displayUserNotes" v-model="ficTrackerSettings.displayUserNotes">
                             <label for="toggle_displayUserNotes"
-                                title="Shows the "Add note" button on each work card and your saved notes as collapsible sections">
+                                title="Shows the 'Add note' button on each work card and your saved notes as collapsible sections">
                                 Display "Add Note" button and your notes in work cards
                             </label>
                         </li>
@@ -2289,6 +2340,28 @@
                             'none',
                         opacity: s.opacity
                     };
+                },
+
+                get bookmarkNoteFormattingPreview() {
+                    const PLACEHOLDERS = {
+                        '{AUTHOR}': '<a href="#">SampleAuthor</a>',
+                        '{TITLE}': '<a href="#">Work Title</a>',
+                        '{FANDOM}': '<a href="#">Fandom You\'re Obsessed With</a>',
+                        '{PAIRING_TAGS}': '<a href="#">Character A/Character B</a>',
+                        '{CHARACTER_TAGS}': '<a href="#">Character A</a>, <a href="#">Character B</a>',
+                        '{ADDITIONAL_TAGS}': '<a href="#">Slow Burn</a>, <a href="#">Romance</a>',
+                        '{SUMMARY}': 'They hate each other. Except they don\'t. This is everyone\'s problem now.',
+                        '{SERIES}': 'Part # of the <a href="#">series that should have been one-shot</a>',
+                    };
+
+                    const text = this.ficTrackerSettings.bookmarkNoteFormatting;
+                    if (!text) return '<em style="opacity:0.5">Start typing to see preview…</em>';
+
+                    let out = text;
+                    for (const [placeholder, value] of Object.entries(PLACEHOLDERS)) {
+                        out = out.replaceAll(placeholder, value);
+                    }
+                    return out;
                 },
 
                 get lastSyncTimeFormatted() {
