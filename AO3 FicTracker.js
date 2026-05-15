@@ -463,7 +463,8 @@
                 };
 
                 if (ficDetails && !('title' in notes[workId])) {
-                    Object.assign(notes[workId], ficDetails);
+                    const { title, author, fandom } = ficDetails;
+                    Object.assign(notes[workId], { title, author, fandom });
                 }
             }
 
@@ -635,12 +636,36 @@
 
 
         getFicDetails(workId, isWorkPage = false) {
-            if (isWorkPage) {
-                const title = document.querySelector('h2.title.heading').textContent.trim();
-                const author = document.querySelector('a[rel="author"]')?.textContent;
-                const fandom = document.querySelector('dd.fandom.tags ul a.tag').textContent;
-                return {title, author, fandom}
-            } else {
+            return isWorkPage
+                ? this.getFicDetailsFromWorkPage()
+                : this.getFicDetailsFromListing(workId);
+        }
+
+
+        getFicDetailsFromWorkPage() {
+            const title = document.querySelector('h2.title.heading').textContent.trim();
+            const author = document.querySelector('a[rel="author"]')?.textContent;
+            const fandom = document.querySelector('dd.fandom.tags ul a.tag').textContent;
+            const summary = document.querySelector('div.summary.module > blockquote.userstuff').textContent;
+
+            const pairingTags = Array.from(
+                document.querySelectorAll('dd.relationship.tags > ul.commas li')
+            ).map(li => li.outerHTML.trim());
+
+            const characterTags = Array.from(
+                document.querySelectorAll('dd.character.tags > ul.commas li')
+            ).map(li => li.outerHTML.trim());
+
+            const additionalTags = Array.from(
+                document.querySelectorAll('dd.freeform.tags > ul.commas li')
+            ).map(li => li.outerHTML.trim());
+
+
+            return { title, author, fandom, summary, pairingTags, characterTags, additionalTags};
+        }
+
+
+        getFicDetailsFromListing(workId){
                 const fic = document.querySelector(`li#work_${workId}, li.work-${workId}`);
                 if (!fic) return;
 
@@ -649,8 +674,21 @@
                 const author = header.querySelector('a[rel="author"]')?.textContent;
                 // explicitly save only one fandom to avoid clutter
                 const fandom = header.querySelector('h5.fandoms.heading > a.tag').textContent;
-                return {title, author, fandom}
-            }
+                const summary = document.querySelector('blockquote.userstuff.summary').textContent;
+
+                const pairingTags = Array.from(
+                    fic.querySelectorAll('ul.tags.commas li.relationships')
+                ).map(li => li.outerHTML.trim());
+
+                const characterTags = Array.from(
+                    fic.querySelectorAll('ul.tags.commas li.characters')
+                ).map(li => li.outerHTML.trim());
+
+                const additionalTags = Array.from(
+                    fic.querySelectorAll('ul.tags.commas li.freeforms')
+                ).map(li => li.outerHTML.trim());
+
+                return {title, author, fandom, summary, pairingTags, characterTags, additionalTags}
         }
 
 
