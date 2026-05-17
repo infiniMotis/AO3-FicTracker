@@ -669,7 +669,7 @@
             const author = document.querySelector('a[rel="author"]')?.textContent;
             const fandom = document.querySelector('dd.fandom.tags ul a.tag').textContent;
             const summary = document.querySelector('div.summary.module > blockquote.userstuff').textContent;
-            const series = document.querySelector('dd.series span.position').outerHTML.trim();
+            const series = document.querySelector('dd.series span.position')?.outerHTML.trim();
 
             const pairingTags = Array.from(
                 document.querySelectorAll('dd.relationship.tags > ul.commas li')
@@ -697,8 +697,8 @@
                 const author = header.querySelector('a[rel="author"]')?.textContent;
                 // explicitly save only one fandom to avoid clutter
                 const fandom = header.querySelector('h5.fandoms.heading > a.tag').textContent;
-                const summary = document.querySelector('blockquote.userstuff.summary').textContent;
-                const series = document.querySelector('ul.series li').innerHTML.trim();
+                const summary = fic.querySelector('blockquote.userstuff.summary').textContent;
+                const series = fic.querySelector('ul.series li')?.innerHTML.trim();
 
                 const pairingTags = Array.from(
                     fic.querySelectorAll('ul.tags.commas li.relationships')
@@ -1471,13 +1471,6 @@
             DEBUG && console.log(`[FicTracker] Initialized BookmarkManager with data:`);
             DEBUG && console.table(this.bookmarkData)
 
-
-            // Fill the contents of bookmark note if enabled and note is not already there
-            if (settings.prefillBookmarkNote && !this.bookmarkData.notes.includes("ft_bookmark_note")) {
-                let ficDetails = this.userNotesManager.getFicDetails(this.bookmarkData.workId, true);
-                this.bookmarkData.notes += fillBookmarkNoteTemplate(settings.bookmarkNoteTemplate, ficDetails)
-            }
-
             // Hide the default "to read" button if specified in settings
             if (settings.hideDefaultToreadBtn) {
                 document.querySelector('li.mark').style.display = "none";
@@ -1570,6 +1563,13 @@
                 btn.innerHTML = settings.loadingLabel;
                 btn.disabled = true;
             });
+
+
+            // Fill the contents of bookmark note if enabled and note is not already there and we are adding tag
+            if (settings.prefillBookmarkNote && !this.bookmarkData.notes.includes("ft_bookmark_note") && !isTagPresent) {
+                let ficDetails = this.userNotesManager.getFicDetails(this.bookmarkData.workId, true);
+                this.bookmarkData.notes += fillBookmarkNoteTemplate(settings.bookmarkNoteTemplate, ficDetails)
+            }
 
             try {
                 // Send tag toggle request and modify cached bookmark data
@@ -1797,8 +1797,8 @@
                     // Use case-insensitive comparison to check if tag exists
                     const tagExists = bookmarkData.bookmarkTags.some(t => t.toLowerCase() === targetStatusTag.toLowerCase());
 
-                    // Fill the contents of bookmark note if enabled and note is not already there
-                    if (settings.prefillBookmarkNote && !bookmarkData.notes.includes("ft_bookmark_note")) {
+                    // Fill the contents of bookmark note if enabled and note is not already there, only on adding tags
+                    if (settings.prefillBookmarkNote && !bookmarkData.notes.includes("ft_bookmark_note") && !tagExists) {
                         let ficDetails = this.userNotesManager.getFicDetails(bookmarkData.workId, false);
                         bookmarkData.notes += fillBookmarkNoteTemplate(settings.bookmarkNoteTemplate, ficDetails)
                     }
