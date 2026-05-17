@@ -1413,7 +1413,10 @@
             // If the bookmark exists - update it, if not - create a new one
             if (bookmarkData.workId !== bookmarkData.bookmarkId) {
                 // If bookmark becomes empty (no notes, tags, collections) after status change - delete it
-                const hasNoData = bookmarkData.notes === "" && bookmarkData.bookmarkTags.length === 0 && bookmarkData.collections.length === 0;
+                const noteIsOnlyPrefill = bookmarkData.notes.trimStart().startsWith('<div><abbr title="ft_bookmark_note">');
+                const hasNoData = (bookmarkData.notes === "" || noteIsOnlyPrefill)
+                    && bookmarkData.bookmarkTags.length === 0
+                    && bookmarkData.collections.length === 0;
                 
 
                 if (settings.deleteEmptyBookmarks && hasNoData) {
