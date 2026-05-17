@@ -51,14 +51,6 @@
         <ul>{PAIRING_TAGS}</ul>
     </details>
     <details>
-        <summary>Characters:</summary>
-        <ul>{CHARACTER_TAGS}</ul>
-    </details>
-    <details>
-        <summary>Additional Tags:</summary>
-        <ul>{ADDITIONAL_TAGS}</ul>
-    </details>
-    <details>
         <summary>Summary</summary>
         <blockquote>{SUMMARY}</blockquote>
     </details>
