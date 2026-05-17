@@ -669,6 +669,7 @@
             const author = document.querySelector('a[rel="author"]')?.textContent;
             const fandom = document.querySelector('dd.fandom.tags ul a.tag').textContent;
             const summary = document.querySelector('div.summary.module > blockquote.userstuff').textContent;
+            const series = document.querySelector('dd.series span.position').outerHTML.trim();
 
             const pairingTags = Array.from(
                 document.querySelectorAll('dd.relationship.tags > ul.commas li')
@@ -683,7 +684,7 @@
             ).map(li => li.outerHTML.trim());
 
 
-            return { title, author, fandom, summary, pairingTags, characterTags, additionalTags};
+            return { title, author, fandom, summary, pairingTags, characterTags, additionalTags, series};
         }
 
 
@@ -697,6 +698,7 @@
                 // explicitly save only one fandom to avoid clutter
                 const fandom = header.querySelector('h5.fandoms.heading > a.tag').textContent;
                 const summary = document.querySelector('blockquote.userstuff.summary').textContent;
+                const series = document.querySelector('ul.series li').innerHTML.trim();
 
                 const pairingTags = Array.from(
                     fic.querySelectorAll('ul.tags.commas li.relationships')
@@ -710,7 +712,7 @@
                     fic.querySelectorAll('ul.tags.commas li.freeforms')
                 ).map(li => li.outerHTML.trim());
 
-                return {title, author, fandom, summary, pairingTags, characterTags, additionalTags}
+                return {title, author, fandom, summary, pairingTags, characterTags, additionalTags, series}
         }
 
 
@@ -2131,7 +2133,7 @@
                         <summary>Bookmark Notes Formatting</summary>
                         <ul>
                             <li>
-                                <label for="notes_content">Bookmark Note Formatting Preview:</label>
+                                <label for="notes_content">Bookmark Note Formatting Preview:</label> <a target="_blank" href="https://archiveofourown.org/faq/formatting-content-on-ao3-with-html">[AO3 HTML Formatting Guide]</a>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                                     <textarea id="notes_content" v-model="ficTrackerSettings.bookmarkNoteTemplate"
                                         style="height: 120px; resize: vertical;">
@@ -2423,8 +2425,8 @@
                         '{TITLE}': '<a href="#">Work Title</a>',
                         '{FANDOM}': '<a href="#">Fandom You\'re Obsessed With</a>',
                         '{PAIRING_TAGS}': '<a href="#">Character A/Character B</a>',
-                        '{CHARACTER_TAGS}': '<a href="#">Character A</a>, <a href="#">Character B</a>',
-                        '{ADDITIONAL_TAGS}': '<a href="#">Slow Burn</a>, <a href="#">Romance</a>',
+                        '{CHARACTER_TAGS}': '<li><a href="#">Character A</a></li><li><a href="#">Character B</a></li>',
+                        '{ADDITIONAL_TAGS}': '<li><a href="#">Slow Burn</a></li><li><a href="#">Romance</a></li>',
                         '{SUMMARY}': 'They hate each other. Except they don\'t. This is everyone\'s problem now.',
                         '{SERIES}': 'Part # of the <a href="#">series that should have been one-shot</a>',
                     };
