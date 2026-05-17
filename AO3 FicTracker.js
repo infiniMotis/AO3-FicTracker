@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.6.6
+// @version      1.6.7
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -59,7 +59,7 @@
         <ul>{ADDITIONAL_TAGS}</ul>
     </details>
     <details>
-        <summary>Summary:</summary>
+        <summary>Summary</summary>
         <blockquote>{SUMMARY}</blockquote>
     </details>
     </details>`;
@@ -159,7 +159,7 @@
         displayMyNotesButton: true,
         displayOnPageSorting: true,
         prefillBookmarkNote: false,
-        bookmarkNoteFormatting: DEFAULT_BOOKMARK_NOTE_FORMAT
+        bookmarkNoteTemplate: DEFAULT_BOOKMARK_NOTE_FORMAT
     };
 
     // Toggle debug info
@@ -181,6 +181,27 @@
         return url.includes('/bookmarks') && url.includes(username);
     }
 
+    // Utility function to replace bookmark note placeholders with fic details
+    function fillBookmarkNoteTemplate(template, ficData) {
+        let result = template;
+        
+        const placeholders = {
+            '{AUTHOR}': `<a href="/users/${encodeURIComponent(ficData.author)}">${ficData.author}</a>`,
+            '{TITLE}': `<a href="/works/${ficData.workId}">${ficData.title}</a>`,
+            '{FANDOM}': `<a href="/tags/${encodeURIComponent(ficData.fandom)}/works">${ficData.fandom}</a>`,
+            '{SUMMARY}': ficData.summary,
+            '{PAIRING_TAGS}': ficData.pairingTags.join(""),
+            '{CHARACTER_TAGS}': ficData.characterTags.join(""),
+            '{ADDITIONAL_TAGS}': ficData.additionalTags.join(""),
+            '{SERIES}': ficData.series
+        };
+
+        for (const [key, value] of Object.entries(placeholders)) {
+            result = result.replaceAll(key, value ?? "");
+        }
+        
+        return `<div><abbr title="ft_bookmark_note" style="display:none"></abbr>${result}</div>`;
+    }
 
     // Utility function for displaying modals
     function displayModal(modalTitle, htmlContent) {
@@ -636,9 +657,10 @@
 
 
         getFicDetails(workId, isWorkPage = false) {
-            return isWorkPage
+            const details = isWorkPage
                 ? this.getFicDetailsFromWorkPage()
                 : this.getFicDetailsFromListing(workId);
+            return { ...details, workId };
         }
 
 
@@ -1398,11 +1420,13 @@
             if (bookmarkData.workId !== bookmarkData.bookmarkId) {
                 // If bookmark becomes empty (no notes, tags, collections) after status change - delete it
                 const hasNoData = bookmarkData.notes === "" && bookmarkData.bookmarkTags.length === 0 && bookmarkData.collections.length === 0;
+                
 
                 if (settings.deleteEmptyBookmarks && hasNoData) {
                     DEBUG && console.log(`[FicTracker] Deleting empty bookmark ID: ${bookmarkData.bookmarkId}`);
                     await requestManager.deleteBookmark(bookmarkData.bookmarkId, authenticityToken);
                     bookmarkData.bookmarkId = bookmarkData.workId;
+                    
                 } else {
                     // Update the existing bookmark
                     await requestManager.updateBookmark(bookmarkData.bookmarkId, authenticityToken, bookmarkData);
@@ -1444,6 +1468,13 @@
 
             DEBUG && console.log(`[FicTracker] Initialized BookmarkManager with data:`);
             DEBUG && console.table(this.bookmarkData)
+
+
+            // Fill the contents of bookmark note if enabled and note is not already there
+            if (settings.prefillBookmarkNote && !this.bookmarkData.notes.includes("ft_bookmark_note")) {
+                let ficDetails = this.userNotesManager.getFicDetails(this.bookmarkData.workId, true);
+                this.bookmarkData.notes += fillBookmarkNoteTemplate(settings.bookmarkNoteTemplate, ficDetails)
+            }
 
             // Hide the default "to read" button if specified in settings
             if (settings.hideDefaultToreadBtn) {
@@ -1763,6 +1794,12 @@
 
                     // Use case-insensitive comparison to check if tag exists
                     const tagExists = bookmarkData.bookmarkTags.some(t => t.toLowerCase() === targetStatusTag.toLowerCase());
+
+                    // Fill the contents of bookmark note if enabled and note is not already there
+                    if (settings.prefillBookmarkNote && !bookmarkData.notes.includes("ft_bookmark_note")) {
+                        let ficDetails = this.userNotesManager.getFicDetails(bookmarkData.workId, false);
+                        bookmarkData.notes += fillBookmarkNoteTemplate(settings.bookmarkNoteTemplate, ficDetails)
+                    }
 
                     try {
                         // Send tag toggle request and modify cached bookmark data
@@ -2096,7 +2133,7 @@
                             <li>
                                 <label for="notes_content">Bookmark Note Formatting Preview:</label>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                                    <textarea id="notes_content" v-model="ficTrackerSettings.bookmarkNoteFormatting"
+                                    <textarea id="notes_content" v-model="ficTrackerSettings.bookmarkNoteTemplate"
                                         style="height: 120px; resize: vertical;">
                                     </textarea>
                                     <div v-html="bookmarkNoteFormattingPreview" style="border: 1px solid #ccc; padding: 8px; min-height: 120px;"></div>
@@ -2392,7 +2429,7 @@
                         '{SERIES}': 'Part # of the <a href="#">series that should have been one-shot</a>',
                     };
 
-                    const text = this.ficTrackerSettings.bookmarkNoteFormatting;
+                    const text = this.ficTrackerSettings.bookmarkNoteTemplate;
                     if (!text) return '<em style="opacity:0.5">Start typing to see preview…</em>';
 
                     let out = text;
