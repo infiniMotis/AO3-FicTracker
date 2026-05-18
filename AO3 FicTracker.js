@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.7
+// @version      1.6.7.1
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -180,7 +180,7 @@
         const placeholders = {
             '{AUTHOR}': `<a href="/users/${encodeURIComponent(ficData.author)}">${ficData.author}</a>`,
             '{TITLE}': `<a href="/works/${ficData.workId}">${ficData.title}</a>`,
-            '{FANDOM}': `<a href="/tags/${encodeURIComponent(ficData.fandom)}/works">${ficData.fandom}</a>`,
+            '{FANDOM}': ficData.fandom.map(item => item.outerHTML).join(' '),
             '{SUMMARY}': ficData.summary,
             '{PAIRING_TAGS}': ficData.pairingTags.join(""),
             '{CHARACTER_TAGS}': ficData.characterTags.join(""),
@@ -477,7 +477,7 @@
 
                 if (ficDetails && !('title' in notes[workId])) {
                     const { title, author, fandom } = ficDetails;
-                    Object.assign(notes[workId], { title, author, fandom });
+                    Object.assign(notes[workId], { title, author, fandom: fandom[0].outerHTML });
                 }
             }
 
@@ -659,7 +659,7 @@
         getFicDetailsFromWorkPage() {
             const title = document.querySelector('h2.title.heading').textContent.trim();
             const author = document.querySelector('a[rel="author"]')?.textContent;
-            const fandom = document.querySelector('dd.fandom.tags ul a.tag').textContent;
+            const fandom = [...document.querySelectorAll('dd.fandom.tags ul a.tag')];
             const summary = document.querySelector('div.summary.module > blockquote.userstuff').textContent;
             const series = document.querySelector('dd.series span.position')?.outerHTML.trim();
 
@@ -687,10 +687,9 @@
                 const header = fic.querySelector('div.header.module');
                 const title = header.querySelector('a[href^="/works/"]').textContent;
                 const author = header.querySelector('a[rel="author"]')?.textContent;
-                // explicitly save only one fandom to avoid clutter
-                const fandom = header.querySelector('h5.fandoms.heading > a.tag').textContent;
+                const fandom = [...header.querySelectorAll('h5.fandoms.heading > a.tag')];
                 const summary = fic.querySelector('blockquote.userstuff.summary').textContent;
-                const series = fic.querySelector('ul.series li')?.innerHTML.trim();
+                const series = fic.querySelector('li ul.series li')?.innerHTML.trim();
 
                 const pairingTags = Array.from(
                     fic.querySelectorAll('ul.tags.commas li.relationships')
@@ -712,10 +711,13 @@
             const container = document.createElement('span');
 
             if (note.title) {
+                const temp = document.createElement('div');
+                temp.innerHTML = note.fandom;
+                const fandomText = temp.querySelector('a')?.textContent ?? note.fandom;
                 const fandomLink = document.createElement('a');
                 fandomLink.target = '_blank';
-                fandomLink.href = `/tags/${encodeURIComponent(note.fandom)}/works`;
-                fandomLink.textContent = note.fandom;
+                fandomLink.href = `/tags/${encodeURIComponent(fandomText)}/works`;
+                fandomLink.textContent = fandomText;
 
                 const workLink = document.createElement('a');
                 workLink.target = '_blank';
