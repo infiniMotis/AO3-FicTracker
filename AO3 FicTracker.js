@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.7.1
+// @version      1.6.7.2
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -185,7 +185,9 @@
             '{PAIRING_TAGS}': ficData.pairingTags.join(""),
             '{CHARACTER_TAGS}': ficData.characterTags.join(""),
             '{ADDITIONAL_TAGS}': ficData.additionalTags.join(""),
-            '{SERIES}': ficData.series
+            '{SERIES}': ficData.series,
+            '{WORK_ID}': ficData.workId,
+            '{SERIES_SUMMARY}': ficData.seriesSummary
         };
 
         for (const [key, value] of Object.entries(placeholders)) {
@@ -703,7 +705,10 @@
                     fic.querySelectorAll('ul.tags.commas li.freeforms')
                 ).map(li => li.outerHTML.trim());
 
-                return {title, author, fandom, summary, pairingTags, characterTags, additionalTags, series}
+
+                const seriesSummary = document.querySelector('div.series-show dl.series.meta.group blockquote.userstuff')?.textContent;
+
+                return {title, author, fandom, summary, pairingTags, characterTags, additionalTags, series, seriesSummary}
         }
 
 
@@ -2139,7 +2144,7 @@
                                 </div>
                             </li>
                             <li>
-                                <small>Placeholders: {AUTHOR} {TITLE} {FANDOM} {PAIRING_TAGS} {CHARACTER_TAGS} {ADDITIONAL_TAGS} {SUMMARY} {SERIES}</small>
+                                <small>Placeholders: {AUTHOR} {TITLE} {FANDOM} {PAIRING_TAGS} {CHARACTER_TAGS} {ADDITIONAL_TAGS} {SUMMARY} {SERIES} {SERIES_SUMMARY} {WORK_ID}</small>
                             </li>
                         </ul>
                     </details>
@@ -2426,6 +2431,8 @@
                         '{ADDITIONAL_TAGS}': '<li><a href="#">Slow Burn</a></li><li><a href="#">Romance</a></li>',
                         '{SUMMARY}': 'They hate each other. Except they don\'t. This is everyone\'s problem now.',
                         '{SERIES}': 'Part # of the <a href="#">series that should have been one-shot</a>',
+                        '{WORK_ID}': '1234567',
+                        '{SERIES_SUMMARY}': 'This is series summary'
                     };
 
                     const text = this.ficTrackerSettings.bookmarkNoteTemplate;
