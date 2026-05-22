@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.7.2
+// @version      1.6.7.3
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -662,7 +662,7 @@
             const title = document.querySelector('h2.title.heading').textContent.trim();
             const author = document.querySelector('a[rel="author"]')?.textContent;
             const fandom = [...document.querySelectorAll('dd.fandom.tags ul a.tag')];
-            const summary = document.querySelector('div.summary.module > blockquote.userstuff').textContent;
+            const summary = document.querySelector('div.summary.module > blockquote.userstuff').innerText;
             const series = document.querySelector('dd.series span.position')?.outerHTML.trim();
 
             const pairingTags = Array.from(
@@ -690,7 +690,7 @@
                 const title = header.querySelector('a[href^="/works/"]').textContent;
                 const author = header.querySelector('a[rel="author"]')?.textContent;
                 const fandom = [...header.querySelectorAll('h5.fandoms.heading > a.tag')];
-                const summary = fic.querySelector('blockquote.userstuff.summary').textContent;
+                const summary = fic.querySelector('blockquote.userstuff.summary').innerText;
                 const series = fic.querySelector('li ul.series li')?.innerHTML.trim();
 
                 const pairingTags = Array.from(
