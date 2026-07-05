@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.7.4
+// @version      1.6.7.5
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -1646,6 +1646,9 @@
                 if (work.querySelector('.message')?.textContent.includes('has been deleted')) {
                     DEBUG && console.log('[FicTracker] Skipping deleted work:', work.id);
                     return;
+                } else if (work.querySelector('div.header').classList.contains('mystery')) {
+                    DEBUG && console.log('[FicTracker] Skipping mystery work:', work.id);
+                    return;
                 }
 
                 const workId = this.getWorkId(work);
@@ -1768,7 +1771,7 @@
             work.querySelector('dl.stats').insertAdjacentHTML('beforeend', `
                 <header id="header" class="region" style="padding: 0; font-size: 1em !important; cursor: pointer; opacity: 1; word-spacing: normal !important; display: inline;">
                 <ul class="navigation actions">
-                    <li class="dropdown" aria-haspopup="true" style="position: relative !important;>
+                    <li class="dropdown" aria-haspopup="true" style="position: relative !important;">
                         <a href="#" class="dropdown-toggle" data-toggle="dropdown" data-target="#">✨ Change Status ▼</a>
                         <ul class="menu dropdown-menu" style="width: auto !important;">
                             ${dropdownItems.join('')}
