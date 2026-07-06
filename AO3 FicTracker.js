@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.7.5
+// @version      1.6.7.6
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -185,7 +185,7 @@
             '{PAIRING_TAGS}': ficData.pairingTags.join(""),
             '{CHARACTER_TAGS}': ficData.characterTags.join(""),
             '{ADDITIONAL_TAGS}': ficData.additionalTags.join(""),
-            '{SERIES}': ficData.series,
+            '{SERIES}': ficData.series.join("<br>"),
             '{WORK_ID}': ficData.workId,
             '{SERIES_SUMMARY}': ficData.seriesSummary
         };
@@ -663,7 +663,8 @@
             const author = document.querySelector('a[rel="author"]')?.textContent;
             const fandom = [...document.querySelectorAll('dd.fandom.tags ul a.tag')];
             const summary = document.querySelector('div.summary.module > blockquote.userstuff').innerText;
-            const series = document.querySelector('dd.series span.position')?.outerHTML.trim();
+            const series = Array.from(document.querySelectorAll('dd.series span.position'))
+                .map(el => el.outerHTML.trim());
 
             const pairingTags = Array.from(
                 document.querySelectorAll('dd.relationship.tags > ul.commas li')
@@ -691,7 +692,8 @@
                 const author = header.querySelector('a[rel="author"]')?.textContent;
                 const fandom = [...header.querySelectorAll('h5.fandoms.heading > a.tag')];
                 const summary = fic.querySelector('blockquote.userstuff.summary').innerText;
-                const series = fic.querySelector('li ul.series li')?.innerHTML.trim();
+                const series = Array.from(fic.querySelectorAll('li ul.series li'))
+                    .map(li => li.innerHTML.trim())
 
                 const pairingTags = Array.from(
                     fic.querySelectorAll('ul.tags.commas li.relationships')
@@ -1771,7 +1773,7 @@
             work.querySelector('dl.stats').insertAdjacentHTML('beforeend', `
                 <header id="header" class="region" style="padding: 0; font-size: 1em !important; cursor: pointer; opacity: 1; word-spacing: normal !important; display: inline;">
                 <ul class="navigation actions">
-                    <li class="dropdown" aria-haspopup="true" style="position: relative !important;">
+                    <li class="dropdown" aria-haspopup="true" style="position: relative !important;>
                         <a href="#" class="dropdown-toggle" data-toggle="dropdown" data-target="#">✨ Change Status ▼</a>
                         <ul class="menu dropdown-menu" style="width: auto !important;">
                             ${dropdownItems.join('')}
