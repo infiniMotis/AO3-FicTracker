@@ -339,8 +339,13 @@
 
             return this.sendRequest(url, formData, headers)
                 .then(response => {
-                    if (response.ok) {
-                        const bookmarkId = response.url.split('/').pop();
+
+                    // A real success is always a redirect to /bookmarks/{id}
+                    // A 200 with no redirect means AO3 rejected creation (alidation error, duplicate bookmark etc) and just re-rendered the page
+                    const bookmarkIdMatch = response.url.match(/\/bookmarks\/(\d+)(?:[/?#]|$)/);
+
+                    if (response.ok && response.redirected && bookmarkIdMatch) {
+                        const bookmarkId = bookmarkIdMatch[1];
 
                         DEBUG && console.log('[FicTracker] Created bookmark ID:', bookmarkId);
                         return bookmarkId;
@@ -1098,10 +1103,15 @@
             };
 
             DEBUG && console.log(`[FicTracker] Queuing pending status change: ${action} ${statusKey} → ${fanficId}`);
-            this.optimizeOperations(pendingChanges.operations, newOperation);
 
-            pendingChanges.operations.push(newOperation);
+            if (!this.optimizeOperations(pendingChanges.operations, newOperation)) {
+                pendingChanges.operations.push(newOperation);
+                this.savePendingChanges(pendingChanges);
+                return newOperation.id;
+            }
+
             this.savePendingChanges(pendingChanges);
+            return null;
         }
 
         // Add a note update to the pending queue
@@ -1125,30 +1135,33 @@
         }
 
         // Optimize operations by removing conflicting ones
+        // Returns true if the new operation was fully cancelled out
         optimizeOperations(operations, newOperation) {
-            const {
-                action,
-                key,
-                value
-            } = newOperation;
+            const { action, key, value } = newOperation;
 
-            // Find and remove conflicting operations
             for (let i = operations.length - 1; i >= 0; i--) {
                 const existing = operations[i];
-
                 if (existing.key === key && existing.value === value) {
-                    // Same key-value pair
                     if (existing.action !== action) {
-                        // Conflicting actions (add vs remove) - remove the existing one
                         operations.splice(i, 1);
                         DEBUG && console.log(`[FicTracker] Optimized conflicting operations for ${key}:${value}`);
+                        return false; // opposite op removed, still need to push the new one
                     } else {
-                        // Same action - remove duplicate
                         DEBUG && console.log(`[FicTracker] Removed duplicate operation for ${key}:${value}`);
-                        return; // Don't add the new operation either
+                        return true; // exact duplicate - cancel, don't push
                     }
                 }
             }
+            return false;
+        }
+
+        // Remove a specific queued operation by id
+        cancelPendingOperation(id) {
+            if (!id) return;
+            const pendingChanges = this.getPendingChanges();
+            pendingChanges.operations = pendingChanges.operations.filter(op => op.id !== id);
+            this.savePendingChanges(pendingChanges);
+            DEBUG && console.log('[FicTracker] Cancelled unsent pending operation:', id);
         }
 
         // Get pending changes from localStorage
@@ -1439,6 +1452,9 @@
         }
 
         async processTagToggle(tag, isTagPresent, bookmarkData, authenticityToken, storageKey, storageManager, requestManager, remoteSyncManager) {
+            const previousTags = [...bookmarkData.bookmarkTags];
+            let queuedOpId = null;
+
             // Toggle the bookmark tag and log the action
             if (isTagPresent) {
                 DEBUG && console.log(`[FicTracker] Removing tag: ${tag}`);
@@ -1450,6 +1466,7 @@
                 }
 
                 storageManager.removeIdFromCategory(storageKey, bookmarkData.workId);
+                if (remoteSyncManager) queuedOpId = remoteSyncManager.addPendingStatusChange('remove', storageKey, bookmarkData.workId);
 
             if (remoteSyncManager) {
                 remoteSyncManager.addPendingStatusChange('remove', storageKey, bookmarkData.workId);
@@ -1459,6 +1476,7 @@
                 DEBUG && console.log(`[FicTracker] Adding tag: ${tag}`);
                 bookmarkData.bookmarkTags.push(tag);
                 storageManager.addIdToCategory(storageKey, bookmarkData.workId);
+                if (remoteSyncManager) queuedOpId = remoteSyncManager.addPendingStatusChange('add', storageKey, bookmarkData.workId);
 
                 if (remoteSyncManager) {
                     remoteSyncManager.addPendingStatusChange('add', storageKey, bookmarkData.workId);
@@ -1466,33 +1484,55 @@
             }
 
 
-            // If the bookmark exists - update it, if not - create a new one
-            if (bookmarkData.workId !== bookmarkData.bookmarkId) {
-                // If bookmark becomes empty (no notes, tags, collections) after status change - delete it
-                const noteIsOnlyPrefill = /^\s*<div>\s*<abbr title="ft_bookmark_note">/.test(bookmarkData.notes);
-                const hasNoData = (bookmarkData.notes === "" || noteIsOnlyPrefill)
-                    && bookmarkData.bookmarkTags.length === 0
-                    && bookmarkData.collections.length === 0;
+            try {
+                // If the bookmark exists - update it, if not - create a new one
+                if (bookmarkData.workId !== bookmarkData.bookmarkId) {
+                    // If bookmark becomes empty (no notes, tags, collections) after status change - delete it
+                    const noteIsOnlyPrefill = /^\s*<div>\s*<abbr title="ft_bookmark_note">/.test(bookmarkData.notes);
+                    const hasNoData = (bookmarkData.notes === "" || noteIsOnlyPrefill)
+                        && bookmarkData.bookmarkTags.length === 0
+                        && bookmarkData.collections.length === 0;
 
 
-                if (settings.deleteEmptyBookmarks && hasNoData) {
-                    DEBUG && console.log(`[FicTracker] Deleting empty bookmark ID: ${bookmarkData.bookmarkId}`);
-                    await requestManager.deleteBookmark(bookmarkData.bookmarkId, authenticityToken);
-                    bookmarkData.bookmarkId = bookmarkData.workId;
+                    if (settings.deleteEmptyBookmarks && hasNoData) {
+                        DEBUG && console.log(`[FicTracker] Deleting empty bookmark ID: ${bookmarkData.bookmarkId}`);
+                        await requestManager.deleteBookmark(bookmarkData.bookmarkId, authenticityToken);
+                        bookmarkData.bookmarkId = bookmarkData.workId;
+
+                    } else {
+                        // Update the existing bookmark
+                        await requestManager.updateBookmark(bookmarkData.bookmarkId, authenticityToken, bookmarkData);
+                    }
 
                 } else {
-                    // Update the existing bookmark
-                    await requestManager.updateBookmark(bookmarkData.bookmarkId, authenticityToken, bookmarkData);
+                    // Create a new bookmark
+                    bookmarkData.isPrivate = settings.newBookmarksPrivate;
+                    bookmarkData.isRec = settings.newBookmarksRec;
+                    bookmarkData.bookmarkId = await requestManager.createBookmark(bookmarkData.workId, authenticityToken, bookmarkData);
+
+                    DEBUG && console.log(`[FicTracker] Created bookmark ID: ${bookmarkData.bookmarkId}`);
                 }
+        } catch (error) {
+            // Remote call failed/rejected - undo everything we applied
+            DEBUG && console.warn('[FicTracker] Rolling back optimistic changes due to error:', error);
 
+            bookmarkData.bookmarkTags = previousTags;
+
+            if (isTagPresent) {
+                // we had removed it locally - put it back
+                storageManager.addIdToCategory(storageKey, bookmarkData.workId);
+                if (remoteSyncManager) remoteSyncManager.addPendingStatusChange('add', storageKey, bookmarkData.workId);
             } else {
-                // Create a new bookmark
-                bookmarkData.isPrivate = settings.newBookmarksPrivate;
-                bookmarkData.isRec = settings.newBookmarksRec;
-                bookmarkData.bookmarkId = await requestManager.createBookmark(bookmarkData.workId, authenticityToken, bookmarkData);
-
-                DEBUG && console.log(`[FicTracker] Created bookmark ID: ${bookmarkData.bookmarkId}`);
+                // we had added it locally - take it back off
+                storageManager.removeIdFromCategory(storageKey, bookmarkData.workId);
+                if (remoteSyncManager) remoteSyncManager.addPendingStatusChange('remove', storageKey, bookmarkData.workId);
             }
+
+            // Cancel the unsent op
+            if (remoteSyncManager) remoteSyncManager.cancelPendingOperation(queuedOpId);
+
+            throw error;
+        }
 
             return bookmarkData
         }
