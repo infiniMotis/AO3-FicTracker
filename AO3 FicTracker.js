@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.7.7
+// @version      1.6.7.8
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -174,25 +174,39 @@
     }
 
     // Utility function to replace bookmark note placeholders with fic details
-    function fillBookmarkNoteTemplate(template, ficData) {
-        let result = template;
+    const MAX_BOOKMARK_NOTE_LENGTH = 5000;
+    function fillBookmarkNoteTemplate(template, ficData, reservedLength = 0) {
+        const budget = MAX_BOOKMARK_NOTE_LENGTH - reservedLength - 60; // buffer for the <div><abbr> wrapper
 
-        const placeholders = {
-            '{AUTHOR}': `<a href="/users/${encodeURIComponent(ficData.author)}">${ficData.author}</a>`,
-            '{TITLE}': `<a href="/works/${ficData.workId}">${ficData.title}</a>`,
-            '{FANDOM}': ficData.fandom.map(item => item.outerHTML).join(' '),
-            '{SUMMARY}': ficData.summary,
-            '{PAIRING_TAGS}': ficData.pairingTags.join(""),
-            '{CHARACTER_TAGS}': ficData.characterTags.join(""),
-            '{ADDITIONAL_TAGS}': ficData.additionalTags.join(""),
-            '{SERIES}': ficData.series.join("<br>"),
-            '{WORK_ID}': ficData.workId,
-            '{SERIES_SUMMARY}': ficData.seriesSummary
-        };
+        let additionalTags = [...ficData.additionalTags];
+        let characterTags = [...ficData.characterTags];
+        let pairingTags = [...ficData.pairingTags];
+        let summary = ficData.summary;
 
-        for (const [key, value] of Object.entries(placeholders)) {
-            result = result.replaceAll(key, value ?? "");
+        const build = () => template
+            .replaceAll('{AUTHOR}', `<a href="/users/${encodeURIComponent(ficData.author)}">${ficData.author}</a>`)
+            .replaceAll('{TITLE}', `<a href="/works/${ficData.workId}">${ficData.title}</a>`)
+            .replaceAll('{FANDOM}', ficData.fandom.map(item => item.outerHTML).join(' '))
+            .replaceAll('{SUMMARY}', summary)
+            .replaceAll('{PAIRING_TAGS}', pairingTags.join(""))
+            .replaceAll('{CHARACTER_TAGS}', characterTags.join(""))
+            .replaceAll('{ADDITIONAL_TAGS}', additionalTags.join(""))
+            .replaceAll('{SERIES}', ficData.series.join("<br>"))
+            .replaceAll('{WORK_ID}', ficData.workId ?? "")
+            .replaceAll('{SERIES_SUMMARY}', ficData.seriesSummary ?? "");
+
+        // Drop whole tags from the end first - each item is a complete <li>, so this
+        // can never break HTML mid-tag. Least essential lists go first
+        while (build().length > budget && additionalTags.length > 0) additionalTags.pop();
+        while (build().length > budget && characterTags.length > 0) characterTags.pop();
+        while (build().length > budget && pairingTags.length > 0) pairingTags.pop();
+
+        // Last resort - shorten the plain-text summary (no markup here, safe to slice)
+        while (build().length > budget && summary.length > 100) {
+            summary = summary.slice(0, summary.length - 100).trim() + '…';
         }
+
+        const result = build();
 
         return `<div><abbr title="ft_bookmark_note" style="display:none"></abbr>${result}</div>`;
     }
