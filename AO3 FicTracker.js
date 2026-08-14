@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.7.6
+// @version      1.6.7.7
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -1091,6 +1091,7 @@
 
             // Optimize operations - remove conflicting operations
             const newOperation = {
+                id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
                 action,
                 key: statusKey,
                 value: fanficId
@@ -1114,6 +1115,7 @@
             );
 
             pendingChanges.notes.push({
+                id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
                 fanficId,
                 text: text || '',
                 date: date || null
@@ -1173,13 +1175,55 @@
         }
 
         // Clear pending changes
-        clearPendingChanges() {
-            // Reset pending operations and notes to an empty state in storage
-            this.storageManager.setItem(this.PENDING_CHANGES_KEY, JSON.stringify({
-                operations: [],
-                notes: []
-            }));
-            DEBUG && console.log('[FicTracker] Cleared all pending changes (operations and notes).');
+        // clearPendingChanges() {
+        //     // Reset pending operations and notes to an empty state in storage
+        //     this.storageManager.setItem(this.PENDING_CHANGES_KEY, JSON.stringify({
+        //         operations: [],
+        //         notes: []
+        //     }));
+        //     DEBUG && console.log('[FicTracker] Cleared all pending changes (operations and notes).');
+        // }
+
+        // Remove only the specific operations/notes that were actually sent, by id
+        // Anything queued locally during the in-flight request stays untouched
+        removeAppliedChanges(sentSnapshot) {
+            const current = this.getPendingChanges();
+            const sentOpIds = new Set(sentSnapshot.operations.map(o => o.id));
+            const sentNoteIds = new Set(sentSnapshot.notes.map(n => n.id));
+
+            current.operations = current.operations.filter(op => !sentOpIds.has(op.id));
+            current.notes = current.notes.filter(n => !sentNoteIds.has(n.id));
+
+            this.savePendingChanges(current);
+            DEBUG && console.log('[FicTracker] Removed applied changes, remaining:', current.operations.length, current.notes.length);
+        }
+
+        // Re-apply whatever is still unsynced on top of the just-received server data,
+        // so an overwrite never discards a change made mid-request.
+        reapplyPendingOperations() {
+            const pending = this.getPendingChanges();
+
+            pending.operations.forEach(op => {
+                if (op.action === 'add') {
+                    this.storageManager.addIdToCategory(op.key, op.value);
+                } else if (op.action === 'remove') {
+                    this.storageManager.removeIdFromCategory(op.key, op.value);
+                }
+            });
+
+            if (pending.notes.length > 0) {
+                const notes = JSON.parse(this.storageManager.getItem('FT_userNotes') || '{}');
+                pending.notes.forEach(n => {
+                    if (n.text.trim() === '') {
+                        delete notes[n.fanficId];
+                    } else {
+                        notes[n.fanficId] = { ...notes[n.fanficId], text: n.text, date: n.date };
+                    }
+                });
+                this.storageManager.setItem('FT_userNotes', JSON.stringify(notes));
+            }
+
+            DEBUG && console.log('[FicTracker] Reapplied', pending.operations.length, 'pending ops and', pending.notes.length, 'pending notes.');
         }
 
         // Perform sync
@@ -1189,17 +1233,22 @@
                 return;
             }
 
+            if (this.isSyncing) {
+                DEBUG && console.log('[FicTracker] Sync already in progress, skipping.');
+                return;
+            }
+
             // update widget appropriately
             this.isSyncing = true;
             this.updateSyncWidget('syncing');
 
-            const pendingChanges = this.getPendingChanges();
-            DEBUG && console.log('[FicTracker] Performing sync, pending operations:', pendingChanges.operations.length, 'notes:', pendingChanges.notes.length);
+            const snapshot = this.getPendingChanges();
+            DEBUG && console.log('[FicTracker] Performing sync, pending operations:', snapshot.operations.length, 'notes:', snapshot.notes.length);
 
             try {
                 let syncData = {
                     action: 'sync',
-                    queue: pendingChanges
+                    queue: snapshot
                 }
 
                 DEBUG && console.log('[FicTracker] Starting sync:', syncData);
@@ -1207,24 +1256,22 @@
                 const response = await this.sendSyncRequest(syncData);
 
                 if (response.success) {
-                    // Update local storage with server data
+                    // Base state from server
                     this.updateLocalStorage(response.status_data);
+                    if (response.notes) {
+                        this.updateLocalNotes(response.notes);
+                    }
+
+                    // Remove only what was actually sent
+                    this.removeAppliedChanges(snapshot);
+                    // re-apply anything still pending on top, so it isn't lost to the overwrite above
+                    this.reapplyPendingOperations();
 
                     this.timeUntilNextSync = this.syncInterval / 1000;
                     this.isSyncing = false;
                     this.updateSyncWidget('success');
 
-                    // Update notes if provided
-                    if (response.notes) {
-                        this.updateLocalNotes(response.notes);
-                    }
-
-                    // Clear pending changes
-                    this.clearPendingChanges();
-
-                    // Update last sync timestamp
                     this.storageManager.setItem(this.LAST_SYNC_KEY, Date.now().toString());
-
                     DEBUG && console.log('[FicTracker] Sync completed successfully');
                 } else {
                     DEBUG && console.error('[FicTracker] Sync failed:', response.error || 'Unknown error');
