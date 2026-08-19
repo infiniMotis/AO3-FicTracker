@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AO3 FicTracker
 // @author       infiniMotis
-// @version      1.6.7.8
+// @version      1.6.7.9
 // @namespace    https://github.com/infiniMotis/AO3-FicTracker
 // @description  Track your favorite, finished, to-read and disliked fanfics on AO3 with sync across devices. Customizable tags and highlights make it easy to manage and spot your tracked works. Full UI customization on the preferences page.
 // @license      GNU GPLv3
@@ -131,6 +131,7 @@
             }
         ],
         loadingLabel: '⏳Loading...',
+        changeStatusLabel: '✨ Change Status ▼',
         hideDefaultToreadBtn: true,
         newBookmarksPrivate: true,
         newBookmarksRec: false,
@@ -1875,7 +1876,7 @@
                 <header id="header" class="region" style="padding: 0; font-size: 1em !important; cursor: pointer; opacity: 1; word-spacing: normal !important; display: inline;">
                 <ul class="navigation actions">
                     <li class="dropdown" aria-haspopup="true" style="position: relative !important;>
-                        <a href="#" class="dropdown-toggle" data-toggle="dropdown" data-target="#">✨ Change Status ▼</a>
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown" data-target="#">${settings.changeStatusLabel}</a>
                         <ul class="menu dropdown-menu" style="width: auto !important;">
                             ${dropdownItems.join('')}
                         </ul>
@@ -2254,6 +2255,18 @@
                             </li>
                         </ul>
                     </details>
+
+                    <ul>
+                        <li>
+                            <label for="loading_label">Loading Label:</label>
+                            <input type="text" id="loading_label" v-model="ficTrackerSettings.loadingLabel">
+                        </li>
+                        <li>
+                            <label for="changestatus_label">Change Status Label:</label>
+                            <input type="text" id="changestatus_label" v-model="ficTrackerSettings.changeStatusLabel">
+                        </li>
+                    </ul>
+
                 </section>
                 <br>
                 <section>
